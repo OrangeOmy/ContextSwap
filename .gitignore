@@ -16,3 +16,5 @@ wheels/
 *.env.*
 .envrc
 env/.env
+
+*/data/
