@@ -1,6 +1,173 @@
+# tg_manager (Telegram Session Manager / MVP)
+
+This project maps an x402 transaction hash (used as the session ID) to a Telegram Supergroup Forum Topic and provides HTTP APIs to create/query/end sessions.
+
+## 1. Preparation (Telegram)
+
+You need to prepare the following on Telegram:
+
+1. A Supergroup with **Forum Topics** enabled.
+2. A dedicated Telegram user account (recommended) for Telethon login (MTProto userbot).
+3. Add that user to the supergroup and grant admin privileges with at least **Manage Topics** permission (required for creating/closing topics).
+4. Obtain the supergroup `chat_id` (usually like `-100xxxxxxxxxx`).
+5. Manually add buyer bot and seller bot to the supergroup (one-time operation). Note: a Topic is just a thread view; members see the same permissions.
+6. If buyer/seller bots do not respond in the group, check **Privacy Mode** first:
+   - Privacy Mode ON: bots typically only receive mentions or commands.
+   - Recommended: turn Privacy Mode OFF in BotFather, or ensure injected messages include `@buyer_bot @seller_bot`.
+
+Important limitation (must understand):
+- Telegram Bot API does not deliver messages sent by bots to other bots. Therefore this project uses Telethon (user account) to speak/listen in the Topic and relay messages between buyer/seller bots.
+
+## 2. Configuration (env / .env)
+
+Create a `.env` in the project root (already in `.gitignore`).
+
+Required:
+- `API_AUTH_TOKEN`: static token for HTTP API (caller must send `Authorization: Bearer <token>`)
+- `MARKET_CHAT_ID`: the supergroup `chat_id`
+- `TELETHON_API_ID`: Telethon API ID (integer)
+- `TELETHON_API_HASH`: Telethon API hash
+- `TELETHON_SESSION`: Telethon StringSession (must be pre-authorized; server is non-interactive)
+
+Optional:
+- `SQLITE_PATH`: SQLite file path (default `./data/tg_manager.sqlite3`)
+- `HOST`: bind address (default `0.0.0.0`)
+- `PORT`: listen port (default `8000`)
+
+Example:
+```bash
+API_AUTH_TOKEN=change_me_to_a_long_random_string
+MARKET_CHAT_ID=-1001234567890
+TELETHON_API_ID=123456
+TELETHON_API_HASH=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TELETHON_SESSION=1AABBB... (long string)
+SQLITE_PATH=./data/tg_manager.sqlite3
+HOST=0.0.0.0
+PORT=8000
+```
+
+How to generate `TELETHON_SESSION`:
+- Fill `TELETHON_API_ID` and `TELETHON_API_HASH` first, leave `TELETHON_SESSION` empty.
+- Run:
+```bash
+set -a && source .env && set +a
+uv run python scripts/export_telethon_session.py
+```
+- Copy the long string output into `.env` as `TELETHON_SESSION=...`.
+
+## 3. Start the service (uv)
+
+Load `.env` and start:
+```bash
+set -a && source .env && set +a
+uv run main.py
+```
+
+Expected:
+- uvicorn startup logs
+- health check returns 200
+
+```bash
+curl -sS http://127.0.0.1:8000/healthz
+```
+
+Expected response:
+```json
+{"status":"ok"}
+```
+
+## 4. Create session (Topic + injected prompt)
+
+```bash
+curl -sS -X POST "http://127.0.0.1:8000/v1/session/create" \
+  -H "Authorization: Bearer $API_AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "transaction_id": "0xabc123...def",
+    "buyer_bot_username": "mybuyer6384_bot",
+    "seller_bot_username": "Jack_Hua_bot",
+    "initial_prompt": "请 Jack_Hua_bot 使用weather skill 给出2 月 9日 香港的天气。"
+  }'
+```
+
+Notes:
+- `transaction_id` should be the x402 transaction hash (session ID).
+- `buyer_bot_username` / `seller_bot_username` can be with or without `@`; the service normalizes and stores without `@`.
+- The injected system message always includes `@buyer_bot @seller_bot` to trigger updates under Privacy Mode.
+- If the same `transaction_id` already exists, `create` is idempotent: no new topic/injection by default. For troubleshooting, pass `"force_reinject": true`.
+- After startup, the service relays bot messages inside the Topic. Only messages containing `[READY_TO_FORWARD]` are forwarded.
+- If the seller’s forwarded content contains `[END_OF_REPORT]`, the service closes the Topic and marks the session `ended`.
+
+Expected (HTTP):
+- 200 OK
+- JSON includes:
+  - `transaction_id=0xabc123def456`
+  - `status=running`
+  - `chat_id` = `MARKET_CHAT_ID`
+  - `message_thread_id` = new Topic thread id
+
+Expected (Telegram):
+- A new Topic named like `tx:0xabc123def456`
+- A system injection message with rules and markers
+- Buyer/seller bot messages appear in the same Topic, and userbot relays between them
+
+Idempotency:
+- Repeated create for same `transaction_id` returns 200 without duplicating Topic/injection.
+
+## 5. Query session
+
+```bash
+curl -sS "http://127.0.0.1:8000/v1/session/0xabc123def456" \
+  -H "Authorization: Bearer $API_AUTH_TOKEN"
+```
+
+Expected:
+- 200 OK with session fields
+
+## 6. Auto end session (recommended)
+
+Triggers (both required):
+- seller’s final message ends with `[READY_TO_FORWARD]` and includes `[END_OF_REPORT]`.
+
+Server behavior (fixed order):
+1. Forward the last seller message to buyer.
+2. Close the Topic.
+3. Update session to `ended` with `end_reason=end_marker`.
+
+## 7. Manual end session (fallback)
+
+```bash
+curl -sS -X POST "http://127.0.0.1:8000/v1/session/end" \
+  -H "Authorization: Bearer $API_AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"transaction_id":"0xabc123def456"}'
+```
+
+Expected:
+- 200 OK, `status=ended`, `end_reason=api`, `session_end_at` not empty
+
+Idempotency:
+- Repeated end calls return existing ended session, do not overwrite `end_reason`.
+
+## 8. Common errors
+
+- `401`: missing/invalid `Authorization` header
+- `403`: token mismatch
+- `500` with Telethon not configured: ensure `TELETHON_API_ID/TELETHON_API_HASH/TELETHON_SESSION` and `MARKET_CHAT_ID` are set
+- Telethon session not authorized: generate and set `TELETHON_SESSION`
+- Topic not created: userbot lacks **Manage Topics** permission or `MARKET_CHAT_ID` is wrong
+
+## 9. Run tests
+
+```bash
+uv run python -m unittest discover -s tests -p "test_*.py" -q
+```
+
+---
+
 # tg_manager（Telegram 会话管理中间件 / MVP）
 
-本项目用于把“平台的一笔交易 transaction_id”映射为 Telegram 超级群中的一个 Forum Topic（话题），并通过 HTTP API 创建/查询/结束会话。
+本项目用于把“x402 成功交易的 hash（作为会话 ID）”映射为 Telegram 超级群中的一个 Forum Topic（话题），并通过 HTTP API 创建/查询/结束会话。
 
 ## 1. 准备（Telegram）
 
@@ -91,7 +258,7 @@ curl -sS -X POST "http://127.0.0.1:8000/v1/session/create" \
   -H "Authorization: Bearer $API_AUTH_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "transaction_id": "tx_10",
+    "transaction_id": "0xabc123def456",
     "buyer_bot_username": "mybuyer6384_bot",
     "seller_bot_username": "Jack_Hua_bot",
     "initial_prompt": "请 Jack_Hua_bot 使用weather skill 给出2 月 9日 香港的天气。"
@@ -99,6 +266,7 @@ curl -sS -X POST "http://127.0.0.1:8000/v1/session/create" \
 ```
 
 说明：
+- `transaction_id` 建议使用 x402 成功交易的 hash（作为会话 ID）。
 - `buyer_bot_username` / `seller_bot_username` 支持传 `seller_bot` 或 `@seller_bot`；服务会统一规范化为不带 `@` 的形式落库。
 - 服务在系统注入消息里会自动加上 `@buyer_bot @seller_bot`，用于在隐私模式下触发它们收到更新。
 - 若你之前用同一个 `transaction_id` 创建过会话：再次 `create` 默认是幂等的，不会重复发送注入消息；排障时可以在请求里加 `"force_reinject": true` 强制再发一次（用于修复旧会话没有 @ 的情况）。
@@ -109,14 +277,14 @@ curl -sS -X POST "http://127.0.0.1:8000/v1/session/create" \
 
 - 状态码 200
 - JSON 中包含：
-  - `transaction_id=tx_10`
+  - `transaction_id=0xabc123def456`
   - `status=running`
   - `chat_id` 等于你的 `MARKET_CHAT_ID`
   - `message_thread_id` 为新建 Topic 的 thread id
 
 期望结果（Telegram 群内）：
 
-- 超级群中出现一个新 Topic，标题类似 `tx:tx_10`
+- 超级群中出现一个新 Topic，标题类似 `tx:0xabc123def456`
 - Topic 内出现一条“系统注入消息”，包含 `transaction_id`、`initial_prompt`、`[READY_TO_FORWARD]` 与 `[END_OF_REPORT]` 规则
 - buyer/seller bot 的回复会在同一 Topic 内出现；同时 userbot 会将双方消息互相转述（新消息 @ 对方，不引用原消息；仅绑定 Topic 根消息以保证落在线程内），让它们“看起来在对话”
 
@@ -127,7 +295,7 @@ curl -sS -X POST "http://127.0.0.1:8000/v1/session/create" \
 ## 5. 查询会话
 
 ```bash
-curl -sS "http://127.0.0.1:8000/v1/session/tx_10" \
+curl -sS "http://127.0.0.1:8000/v1/session/0xabc123def456" \
   -H "Authorization: Bearer $API_AUTH_TOKEN"
 ```
 
@@ -151,7 +319,7 @@ curl -sS "http://127.0.0.1:8000/v1/session/tx_10" \
 你可以通过查询接口验证：
 
 ```bash
-curl -sS "http://127.0.0.1:8000/v1/session/tx_10" \
+curl -sS "http://127.0.0.1:8000/v1/session/0xabc123def456" \
   -H "Authorization: Bearer $API_AUTH_TOKEN"
 ```
 
@@ -167,7 +335,7 @@ curl -sS "http://127.0.0.1:8000/v1/session/tx_10" \
 curl -sS -X POST "http://127.0.0.1:8000/v1/session/end" \
   -H "Authorization: Bearer $API_AUTH_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"transaction_id":"tx_3"}'
+  -d '{"transaction_id":"0xabc123def456"}'
 ```
 
 期望结果（HTTP 返回）：

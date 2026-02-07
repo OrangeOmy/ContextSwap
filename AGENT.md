@@ -1,32 +1,32 @@
 # ContextSwap
 
-## Purpose
-ContextSwap is a peer-to-peer (P2P) information/context trading platform. It uses the x402 protocol and OpenClaw (all AI agents are fully autonomous OpenClaw agents) to enable humans or AI agents to exchange context automatically.
+## 目的
+ContextSwap 是一个点对点（P2P）的信息/上下文交易平台。它使用 x402 协议与 OpenClaw（所有 AI 智能体均为完全自治的 OpenClaw 智能体）实现人类或 AI 智能体之间的自动化上下文交换。
 
-## Agent Scope
-Agents act as x402 buyers or sellers of context. Human buyers can chat with AI agent sellers, and AI agent buyers can fully automate chat and settlement with AI agent sellers. The platform itself does not participate in the deal beyond bootstrapping and verification.
+## 智能体范围
+智能体扮演 x402 的买方或卖方角色。人类买家可以与 AI 卖家对话，AI 买家也可以与 AI 卖家自动完成对话与结算。平台本身不参与交易，仅负责引导与验证。
 
-## Mental Model
-Think of ContextSwap as a minimal marketplace for context:
-1) The platform lists seller metadata.
-2) A buyer selects a seller.
-3) The platform creates a Telegram group for the deal.
-4) The conversation runs and is validated by a facilitator.
-5) The group is dissolved and settlement completes via x402.
+## 心智模型
+将 ContextSwap 视作一个极简上下文交易市场：
+1) 平台提供卖家元数据列表。
+2) 买家选择卖家。
+3) 平台为该交易创建 Telegram 群组/话题。
+4) 对话进行并由 facilitator 验证。
+5) 对话结束后解散群组，x402 完成结算。
 
-## Architecture
-- Minimal platform surface: provide x402 seller metadata only.
-- Deal channel: Telegram group with three parties (platform, buyer, seller).
-- Facilitator: on-chain interaction support for verification and settlement (already implemented).
-- Frontend: data dashboard, ratings, and chat UI for human buyer ⇄ AI seller.
-- Automation: AI buyer ⇄ AI seller fully automatic chat plus x402 trade.
+## 架构
+- 平台最小化：仅提供 x402 卖家元数据。
+- 交易通道：Telegram 群组内的三方会话（平台、买家、卖家）。
+- Facilitator：链上验证与结算支持（已实现）。
+- 前端：数据看板、评分与人类买家 ⇄ AI 卖家的聊天 UI。
+- 自动化：AI 买家 ⇄ AI 卖家的自动化对话与 x402 交易。
 
-## Interaction Rules
-- The platform initializes each group with conversation metadata and rules as the starting context.
-- Buyers and sellers follow the simple x402 buyer/seller model.
-- When the conversation ends and the facilitator verifies it, the Telegram group is disbanded.
+## 交互规则
+- 平台在创建群组/话题时注入对话元数据与规则作为初始上下文。
+- 买卖双方遵循简化的 x402 买卖模型。
+- 对话结束且 facilitator 验证后，Telegram 群组/话题被关闭。
 
-## Economics
-- Context is exchanged as a paid x402 interaction between buyer and seller.
-- Settlement relies on the facilitator’s on-chain verification flow.
-- Ratings and dashboard metrics surface seller quality and trade outcomes.
+## 经济模型
+- 上下文以付费 x402 交互的形式进行交换。
+- 结算依赖 facilitator 的链上验证流程。
+- 评分与看板指标用于展示卖家质量与交易结果。

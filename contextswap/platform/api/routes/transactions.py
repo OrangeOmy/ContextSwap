@@ -1,0 +1,158 @@
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from pydantic import BaseModel
+
+from contextswap.platform.api.deps import get_db, get_facilitator, get_tg_manager
+from contextswap.platform.db import models
+from eth_utils import to_checksum_address
+
+from contextswap.platform.services import transaction_service
+from contextswap.x402 import b64decode_json, b64encode_json
+
+router = APIRouter(prefix="/v1/transactions", tags=["transactions"])
+
+
+class TransactionCreateRequest(BaseModel):
+    transaction_id: str | None = None
+    seller_id: str | None = None
+    seller_address: str | None = None
+    buyer_address: str
+    buyer_bot_username: str
+    seller_bot_username: str
+    initial_prompt: str
+
+
+def _get_seller(conn, *, seller_id: str | None, seller_address: str | None) -> models.Seller:
+    if seller_id:
+        seller = models.get_seller_by_id(conn, seller_id=seller_id)
+    elif seller_address:
+        try:
+            checksum = to_checksum_address(seller_address)
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        seller = models.get_seller_by_address(conn, evm_address=checksum)
+    else:
+        raise HTTPException(status_code=400, detail="seller_id or seller_address is required")
+
+    if seller is None or seller.status != "active":
+        raise HTTPException(status_code=404, detail="seller not found")
+    return seller
+
+
+@router.post("/create")
+def create_transaction(
+    payload: TransactionCreateRequest,
+    request: Request,
+    response: Response,
+    conn=Depends(get_db),
+    facilitator=Depends(get_facilitator),
+    tg_manager=Depends(get_tg_manager),
+) -> dict:
+    seller = _get_seller(conn, seller_id=payload.seller_id, seller_address=payload.seller_address)
+
+    requirements = transaction_service.build_requirements(seller)
+    requirements_b64 = b64encode_json(requirements)
+
+    payment_header = request.headers.get("PAYMENT-SIGNATURE")
+    if not payment_header:
+        response.status_code = 402
+        response.headers["PAYMENT-REQUIRED"] = requirements_b64
+        return {"error": "payment required"}
+
+    try:
+        payment_payload = b64decode_json(payment_header)
+    except Exception as exc:  # noqa: BLE001
+        response.status_code = 402
+        response.headers["PAYMENT-REQUIRED"] = requirements_b64
+        return {"error": f"invalid payment payload: {exc}"}
+
+    raw_tx = payment_payload.get("rawTransaction", "")
+    try:
+        computed_tx_hash = transaction_service.compute_tx_hash(raw_tx)
+    except Exception as exc:  # noqa: BLE001
+        response.status_code = 402
+        response.headers["PAYMENT-REQUIRED"] = requirements_b64
+        return {"error": f"invalid raw transaction: {exc}"}
+
+    existing = models.get_transaction_by_id(conn, transaction_id=computed_tx_hash)
+    if existing is not None:
+        response.headers["PAYMENT-RESPONSE"] = transaction_service.build_payment_response(
+            existing.tx_hash or computed_tx_hash,
+        )
+        return transaction_service.transaction_to_dict(existing)
+
+    try:
+        tx_hash = transaction_service.verify_and_settle_payment(
+            facilitator,
+            payment_payload,
+            requirements,
+        )
+    except Exception as exc:  # noqa: BLE001
+        response.status_code = 402
+        response.headers["PAYMENT-REQUIRED"] = requirements_b64
+        return {"error": str(exc)}
+
+    transaction_id = tx_hash
+    metadata = {
+        "buyer_bot_username": payload.buyer_bot_username,
+        "seller_bot_username": payload.seller_bot_username,
+        "initial_prompt": payload.initial_prompt,
+    }
+    if payload.transaction_id:
+        metadata["client_transaction_id"] = payload.transaction_id
+
+    transaction = transaction_service.create_transaction(
+        conn,
+        transaction_id=transaction_id,
+        seller=seller,
+        buyer_address=payload.buyer_address,
+        payment_payload=payment_payload,
+        requirements=requirements,
+        tx_hash=tx_hash,
+        metadata=metadata,
+    )
+
+    session_info = None
+    if tg_manager is not None:
+        try:
+            session_info = tg_manager.create_session(
+                transaction_id=tx_hash,
+                buyer_bot_username=payload.buyer_bot_username,
+                seller_bot_username=payload.seller_bot_username,
+                initial_prompt=payload.initial_prompt,
+            )
+            session_chat_id = session_info.get("chat_id")
+            session_thread_id = session_info.get("message_thread_id")
+            if session_chat_id is None or session_thread_id is None:
+                raise RuntimeError("tg_manager response missing chat_id or message_thread_id")
+            transaction = transaction_service.attach_session(
+                conn,
+                transaction_id=transaction_id,
+                chat_id=str(session_chat_id),
+                message_thread_id=int(session_thread_id),
+            )
+        except Exception as exc:  # noqa: BLE001
+            transaction = transaction_service.record_tg_manager_error(
+                conn,
+                transaction_id=transaction_id,
+                error_reason=str(exc),
+            )
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    response.headers["PAYMENT-RESPONSE"] = transaction_service.build_payment_response(tx_hash)
+
+    result = transaction_service.transaction_to_dict(transaction)
+    if session_info is not None:
+        result["session"] = {
+            "chat_id": session_info.get("chat_id"),
+            "message_thread_id": session_info.get("message_thread_id"),
+            "status": session_info.get("status"),
+        }
+    return result
+
+
+@router.get("/{transaction_id}")
+def get_transaction(transaction_id: str, conn=Depends(get_db)) -> dict:
+    got = models.get_transaction_by_id(conn, transaction_id=transaction_id)
+    if got is None:
+        raise HTTPException(status_code=404, detail="transaction not found")
+    return transaction_service.transaction_to_dict(got)
