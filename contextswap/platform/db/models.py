@@ -19,6 +19,8 @@ class Seller:
     seller_id: str
     evm_address: str
     price_wei: int
+    price_conflux_wei: int | None
+    price_tron_sun: int | None
     description: str
     keywords: str
     status: str
@@ -46,11 +48,18 @@ class Transaction:
 
 
 def _row_to_seller(row: sqlite3.Row) -> Seller:
+    price_conflux = row["price_conflux_wei"]
+    if price_conflux is None:
+        fallback = row["price_wei"]
+        if fallback and int(fallback) > 0:
+            price_conflux = int(fallback)
     return Seller(
         id=int(row["id"]),
         seller_id=str(row["seller_id"]),
         evm_address=str(row["evm_address"]),
         price_wei=int(row["price_wei"]),
+        price_conflux_wei=None if price_conflux is None else int(price_conflux),
+        price_tron_sun=None if row["price_tron_sun"] is None else int(row["price_tron_sun"]),
         description=str(row["description"]),
         keywords=str(row["keywords"]),
         status=str(row["status"]),
@@ -85,6 +94,8 @@ def create_seller(
     seller_id: str,
     evm_address: str,
     price_wei: int,
+    price_conflux_wei: int | None,
+    price_tron_sun: int | None,
     description: str,
     keywords: str,
     status: str,
@@ -94,16 +105,18 @@ def create_seller(
         cur = conn.execute(
             """
             INSERT INTO sellers (
-              seller_id, evm_address, price_wei,
+              seller_id, evm_address, price_wei, price_conflux_wei, price_tron_sun,
               description, keywords, status,
               created_at, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 seller_id,
                 evm_address,
                 int(price_wei),
+                None if price_conflux_wei is None else int(price_conflux_wei),
+                None if price_tron_sun is None else int(price_tron_sun),
                 description,
                 keywords,
                 status,

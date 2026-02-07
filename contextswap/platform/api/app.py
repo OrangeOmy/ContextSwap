@@ -6,6 +6,7 @@ from telethon.sessions import StringSession
 
 from contextswap.facilitator.client import DirectFacilitatorClient, HTTPFacilitatorClient
 from contextswap.facilitator.conflux import ConfluxFacilitator
+from contextswap.facilitator.tron import TronFacilitator
 from contextswap.platform.api.routes.health import router as health_router
 from contextswap.platform.api.routes.session import router as session_router
 from contextswap.platform.api.routes.sellers import router as sellers_router
@@ -39,13 +40,26 @@ def create_app(
         relay: TelethonRelay | None = None
         telethon_client: TelegramClient | None = None
 
-        if facilitator_client is None:
+        facilitators: dict[str, object] | None = None
+        if isinstance(facilitator_client, dict):
+            facilitators = facilitator_client
+            facilitator_client = facilitators.get("conflux") or next(iter(facilitators.values()))
+        elif facilitator_client is None:
+            facilitators = {}
             if settings.facilitator_base_url:
-                facilitator_client = HTTPFacilitatorClient(settings.facilitator_base_url)
-            else:
-                if not settings.rpc_url:
-                    raise RuntimeError("Missing Conflux RPC URL")
-                facilitator_client = DirectFacilitatorClient(ConfluxFacilitator(settings.rpc_url))
+                facilitators["conflux"] = HTTPFacilitatorClient(settings.facilitator_base_url)
+            elif settings.rpc_url:
+                facilitators["conflux"] = DirectFacilitatorClient(ConfluxFacilitator(settings.rpc_url))
+
+            if settings.tron_rpc_url:
+                facilitators["tron"] = DirectFacilitatorClient(
+                    TronFacilitator(settings.tron_rpc_url, settings.tron_api_key)
+                )
+
+            if not facilitators:
+                raise RuntimeError("Missing Conflux or Tron RPC URL")
+
+            facilitator_client = facilitators.get("conflux") or next(iter(facilitators.values()))
 
         if tg_manager_client is None:
             if settings.tg_manager_mode == "http":
@@ -92,6 +106,7 @@ def create_app(
                     await relay.start()
 
         app.state.facilitator = facilitator_client
+        app.state.facilitators = facilitators or {"conflux": facilitator_client}
         app.state.tg_manager = tg_manager_client
 
         try:

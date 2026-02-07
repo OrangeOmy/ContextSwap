@@ -68,6 +68,8 @@ class TransactionFlowTest(unittest.TestCase):
         settings = Settings(
             sqlite_path=":memory:",
             rpc_url="http://localhost:8545",
+            tron_rpc_url=None,
+            tron_api_key=None,
             facilitator_base_url=None,
             tg_manager_mode="http",
             tg_manager_base_url=None,

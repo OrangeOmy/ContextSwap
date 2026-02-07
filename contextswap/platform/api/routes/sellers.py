@@ -9,7 +9,9 @@ router = APIRouter(prefix="/v1/sellers", tags=["sellers"])
 
 class SellerRegisterRequest(BaseModel):
     evm_address: str
-    price_wei: int
+    price_wei: int | None = None
+    price_conflux_wei: int | None = None
+    price_tron_sun: int | None = None
     description: str | None = None
     keywords: list[str] | str | None = None
     seller_id: str | None = None
@@ -27,6 +29,8 @@ def register_seller(payload: SellerRegisterRequest, conn=Depends(get_db)) -> dic
             conn,
             evm_address=payload.evm_address,
             price_wei=payload.price_wei,
+            price_conflux_wei=payload.price_conflux_wei,
+            price_tron_sun=payload.price_tron_sun,
             description=payload.description,
             keywords=payload.keywords,
             seller_id=payload.seller_id,

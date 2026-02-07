@@ -9,6 +9,7 @@ from contextswap.platform.api.app import create_app
 from contextswap.platform.config import Settings
 from contextswap.platform.services import transaction_service
 from contextswap.x402 import CHAIN_ID, NETWORK_ID, b64decode_json, b64encode_json
+from contextswap.x402_tron import NETWORK_ID as TRON_NETWORK_ID
 
 
 class TestFacilitator(BaseFacilitator):
@@ -39,6 +40,17 @@ class FakeTelegramService:
         self.closed_topics.append((chat_id, int(message_thread_id)))
 
 
+class TestTronFacilitator:
+    def verify_payment(self, payment: dict, requirements: dict) -> dict:
+        return {"verified": True}
+
+    def settle_payment(self, payment: dict, requirements: dict) -> str:
+        tx = payment.get("transaction", {})
+        if isinstance(tx, dict):
+            return tx.get("txID") or tx.get("txid") or "tron_tx"
+        return "tron_tx"
+
+
 def build_payment_payload(requirements: dict, buyer_private_key: bytes) -> dict:
     accepts = requirements["accepts"][0]
     tx = {
@@ -63,11 +75,26 @@ def build_payment_payload(requirements: dict, buyer_private_key: bytes) -> dict:
     }
 
 
+def build_tron_payment_payload(requirements: dict, *, txid: str) -> dict:
+    accepts = requirements["accepts"][0]
+    return {
+        "x402Version": requirements["x402Version"],
+        "scheme": accepts.get("scheme", "exact"),
+        "network": accepts.get("network", TRON_NETWORK_ID),
+        "from": accepts.get("payTo"),
+        "to": accepts.get("payTo"),
+        "amountWei": str(accepts["amountWei"]),
+        "transaction": {"txID": txid},
+    }
+
+
 class UnifiedIntegrationFlowTest(unittest.TestCase):
     def _build_settings(self, *, sqlite_path: str) -> Settings:
         return Settings(
             sqlite_path=sqlite_path,
             rpc_url="http://localhost:8545",
+            tron_rpc_url=None,
+            tron_api_key=None,
             facilitator_base_url=None,
             tg_manager_mode="inprocess",
             tg_manager_base_url=None,
@@ -208,6 +235,64 @@ class UnifiedIntegrationFlowTest(unittest.TestCase):
             detail_body = tx_detail.json()
             self.assertEqual(detail_body["status"], "paid")
             self.assertIn("telethon is not configured", detail_body["error_reason"])
+
+    def test_unified_tron_payment_and_session_happy_path(self) -> None:
+        fake_tg = FakeTelegramService()
+        facilitators = {"tron": TestTronFacilitator()}
+        app = create_app(
+            self._build_settings(sqlite_path=":memory:"),
+            facilitator_client=facilitators,
+            tg_manager_telegram_service=fake_tg,
+        )
+        with TestClient(app) as client:
+            seller_account = Account.create()
+            buyer_account = Account.create()
+
+            register = client.post(
+                "/v1/sellers/register",
+                json={
+                    "evm_address": seller_account.address,
+                    "price_conflux_wei": 1000,
+                    "price_tron_sun": 2_000_000,
+                    "description": "seller",
+                    "keywords": ["tron"],
+                },
+            )
+            self.assertEqual(register.status_code, 200, register.text)
+            seller_id = register.json()["seller_id"]
+
+            create_payload = {
+                "seller_id": seller_id,
+                "buyer_address": buyer_account.address,
+                "buyer_bot_username": "buyer_bot",
+                "seller_bot_username": "seller_bot",
+                "initial_prompt": "tron payment test",
+                "payment_network": "tron",
+            }
+
+            phase1 = client.post("/v1/transactions/create", json=create_payload)
+            self.assertEqual(phase1.status_code, 402, phase1.text)
+            requirements = b64decode_json(phase1.headers["PAYMENT-REQUIRED"])
+            self.assertEqual(requirements["accepts"][0]["network"], TRON_NETWORK_ID)
+
+            txid = "tron_tx_001"
+            payment_payload = build_tron_payment_payload(requirements, txid=txid)
+            phase2 = client.post(
+                "/v1/transactions/create",
+                json=create_payload,
+                headers={"PAYMENT-SIGNATURE": b64encode_json(payment_payload)},
+            )
+            self.assertEqual(phase2.status_code, 200, phase2.text)
+            body = phase2.json()
+
+            self.assertEqual(body["transaction_id"], txid)
+            self.assertEqual(body["tx_hash"], txid)
+            self.assertEqual(body["status"], "session_created")
+            self.assertEqual(body["session"]["chat_id"], "-1001234567890")
+
+            payment_response = b64decode_json(phase2.headers["PAYMENT-RESPONSE"])
+            self.assertEqual(payment_response["txHash"], txid)
+            self.assertEqual(payment_response["network"], TRON_NETWORK_ID)
 
 
 if __name__ == "__main__":

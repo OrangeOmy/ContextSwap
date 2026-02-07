@@ -31,6 +31,8 @@ def init_db(conn: sqlite3.Connection) -> None:
           seller_id TEXT NOT NULL UNIQUE,
           evm_address TEXT NOT NULL,
           price_wei INTEGER NOT NULL,
+          price_conflux_wei INTEGER,
+          price_tron_sun INTEGER,
           description TEXT NOT NULL,
           keywords TEXT NOT NULL,
           status TEXT NOT NULL,
@@ -64,4 +66,21 @@ def init_db(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_transactions_seller_id ON transactions(seller_id);
         """
     )
+
+    _ensure_column(conn, "sellers", "price_conflux_wei", "INTEGER")
+    _ensure_column(conn, "sellers", "price_tron_sun", "INTEGER")
+    conn.execute(
+        """
+        UPDATE sellers
+        SET price_conflux_wei = price_wei
+        WHERE price_conflux_wei IS NULL
+        """
+    )
     conn.commit()
+
+
+def _ensure_column(conn: sqlite3.Connection, table: str, name: str, ddl: str) -> None:
+    columns = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    if name in columns:
+        return
+    conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")

@@ -8,7 +8,10 @@ def get_db(request: Request):
     return request.app.state.db
 
 
-def get_facilitator(request: Request) -> FacilitatorClient:
+def get_facilitator(request: Request) -> FacilitatorClient | dict[str, FacilitatorClient]:
+    facilitators = getattr(request.app.state, "facilitators", None)
+    if facilitators:
+        return facilitators
     return request.app.state.facilitator
 
 

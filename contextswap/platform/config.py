@@ -11,6 +11,8 @@ LEGACY_ENV_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", 
 class Settings:
     sqlite_path: str
     rpc_url: str | None
+    tron_rpc_url: str | None
+    tron_api_key: str | None
     facilitator_base_url: str | None
     tg_manager_mode: str
     tg_manager_base_url: str | None
@@ -33,6 +35,13 @@ def load_settings(env_path: str | None = None) -> Settings:
         or "./db/contextswap.sqlite3"
     )
     rpc_url = os.getenv("CONFLUX_TESTNET_ENDPOINT", "").strip() or None
+    tron_rpc_url = (
+        os.getenv("TRON_NILE_ENDPOINT", "").strip()
+        or os.getenv("TRON_TESTNET_ENDPOINT", "").strip()
+        or os.getenv("TRON_SHASTA_ENDPOINT", "").strip()
+        or None
+    )
+    tron_api_key = os.getenv("TRON_GRID_API_KEY", "").strip() or os.getenv("TRONGRID_API_KEY", "").strip() or None
     facilitator_base_url = os.getenv("FACILITATOR_BASE_URL", "").strip() or None
     tg_manager_mode = os.getenv("TG_MANAGER_MODE", "http").strip().lower() or "http"
     tg_manager_base_url = os.getenv("TG_MANAGER_BASE_URL", "").strip() or None
@@ -40,8 +49,10 @@ def load_settings(env_path: str | None = None) -> Settings:
     tg_manager_sqlite_path = os.getenv("TG_MANAGER_SQLITE_PATH", "").strip() or sqlite_path
     tg_manager_market_chat_id = os.getenv("MARKET_CHAT_ID", "").strip() or None
 
-    if not facilitator_base_url and not rpc_url:
-        raise RuntimeError("Missing CONFLUX_TESTNET_ENDPOINT or FACILITATOR_BASE_URL in env")
+    if not facilitator_base_url and not rpc_url and not tron_rpc_url:
+        raise RuntimeError(
+            "Missing CONFLUX_TESTNET_ENDPOINT or TRON_NILE_ENDPOINT (or FACILITATOR_BASE_URL) in env"
+        )
     if tg_manager_mode not in {"http", "inprocess"}:
         raise RuntimeError("TG_MANAGER_MODE must be one of: http, inprocess")
     if tg_manager_mode == "http" and tg_manager_base_url and not tg_manager_auth_token:
@@ -55,6 +66,8 @@ def load_settings(env_path: str | None = None) -> Settings:
     return Settings(
         sqlite_path=sqlite_path,
         rpc_url=rpc_url,
+        tron_rpc_url=tron_rpc_url,
+        tron_api_key=tron_api_key,
         facilitator_base_url=facilitator_base_url,
         tg_manager_mode=tg_manager_mode,
         tg_manager_base_url=tg_manager_base_url,

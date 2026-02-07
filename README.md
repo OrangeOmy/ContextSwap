@@ -19,7 +19,7 @@ ContextSwap is a peer-to-peer (P2P) context trading platform. It uses the x402 p
 - **DB** (`db/`): placeholder for future migrations/schemas.
 
 ## Key Concepts
-- **Seller metadata**: EVM address, price, description, keywords.
+- **Seller metadata**: EVM address, prices for Conflux/Tron, description, keywords.
 - **Transaction**: created after x402 payment verification; `transaction_id` equals the x402 transaction hash.
 - **Telegram session**: created by tg_manager with `transaction_id` as the session ID (Topic name `tx:<transaction_id>`).
 
@@ -40,6 +40,12 @@ uv run python -m unittest tests/test_phase1_demo.py -q
 ```
 Uses root `.env` (legacy fallback: `env/.env`) for Conflux testnet RPC + keys.
 
+### 1b) Phase 1 Demo (Tron Nile)
+```bash
+uv run python -m unittest tests/test_phase1_demo_tron.py -q
+```
+Uses the same `.env` load path for Tron Nile RPC + optional TronGrid API key.
+
 ### 2) Platform API
 ```bash
 uv run python -m contextswap.platform.main
@@ -47,6 +53,8 @@ uv run python -m contextswap.platform.main
 
 Required env:
 - `CONFLUX_TESTNET_ENDPOINT` or `FACILITATOR_BASE_URL`
+- `TRON_NILE_ENDPOINT` (for Tron payments/tests)
+- `TRON_GRID_API_KEY` (optional, recommended for TronGrid rate limits)
 - `SQLITE_PATH` (optional, shared default `./db/contextswap.sqlite3`)
 
 Optional tg_manager integration:
@@ -91,6 +99,8 @@ See `tg_manager/README.md` for full Telegram setup and environment details.
 Notes:
 - After payment, `transaction_id` returned by the platform equals the x402 transaction hash.
 - If a client provides a `transaction_id` in the request, it is stored as metadata only.
+- `POST /v1/transactions/create` supports optional `payment_network` (`conflux` or `tron`). For `tron`, the seller's `price_tron_sun` is used (1 TRX = 1,000,000 sun). `price_wei` remains a legacy alias for Conflux pricing.
+ - Seller 可以只开通其中一种支付方式：仅填 `price_tron_sun` 即只支持 Tron；仅填 `price_conflux_wei`/`price_wei` 即只支持 Conflux；两者都填即两链都支持。
 
 ## Business E2E Test (No Unit Tests)
 

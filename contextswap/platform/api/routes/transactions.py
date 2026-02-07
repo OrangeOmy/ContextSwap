@@ -13,6 +13,7 @@ router = APIRouter(prefix="/v1/transactions", tags=["transactions"])
 
 class TransactionCreateRequest(BaseModel):
     transaction_id: str | None = None
+    payment_network: str | None = None
     seller_id: str | None = None
     seller_address: str | None = None
     buyer_address: str
@@ -49,8 +50,31 @@ def create_transaction(
 ) -> dict:
     seller = _get_seller(conn, seller_id=payload.seller_id, seller_address=payload.seller_address)
 
-    requirements = transaction_service.build_requirements(seller)
+    payment_network = (payload.payment_network or "").strip().lower()
+    if not payment_network:
+        if isinstance(facilitator, dict):
+            if "conflux" in facilitator:
+                payment_network = "conflux"
+            elif "tron" in facilitator:
+                payment_network = "tron"
+        else:
+            payment_network = "conflux"
+    if payment_network not in {"conflux", "tron"}:
+        raise HTTPException(status_code=400, detail="payment_network must be one of: conflux, tron")
+
+    if isinstance(facilitator, dict):
+        facilitator_client = facilitator.get(payment_network)
+    else:
+        facilitator_client = facilitator if payment_network == "conflux" else None
+    if facilitator_client is None:
+        raise HTTPException(status_code=400, detail=f"facilitator for {payment_network} is not configured")
+
+    try:
+        requirements = transaction_service.build_requirements(seller, network=payment_network)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     requirements_b64 = b64encode_json(requirements)
+    price_amount = int(requirements["accepts"][0]["amountWei"])
 
     payment_header = request.headers.get("PAYMENT-SIGNATURE")
     if not payment_header:
@@ -65,24 +89,24 @@ def create_transaction(
         response.headers["PAYMENT-REQUIRED"] = requirements_b64
         return {"error": f"invalid payment payload: {exc}"}
 
-    raw_tx = payment_payload.get("rawTransaction", "")
     try:
-        computed_tx_hash = transaction_service.compute_tx_hash(raw_tx)
+        computed_tx_hash = transaction_service.compute_payment_id(payment_payload, network=payment_network)
     except Exception as exc:  # noqa: BLE001
         response.status_code = 402
         response.headers["PAYMENT-REQUIRED"] = requirements_b64
-        return {"error": f"invalid raw transaction: {exc}"}
+        return {"error": f"invalid payment payload: {exc}"}
 
     existing = models.get_transaction_by_id(conn, transaction_id=computed_tx_hash)
     if existing is not None:
         response.headers["PAYMENT-RESPONSE"] = transaction_service.build_payment_response(
             existing.tx_hash or computed_tx_hash,
+            network=payment_network,
         )
         return transaction_service.transaction_to_dict(existing)
 
     try:
         tx_hash = transaction_service.verify_and_settle_payment(
-            facilitator,
+            facilitator_client,
             payment_payload,
             requirements,
         )
@@ -108,6 +132,7 @@ def create_transaction(
         payment_payload=payment_payload,
         requirements=requirements,
         tx_hash=tx_hash,
+        price_wei=price_amount,
         metadata=metadata,
     )
 
@@ -138,7 +163,7 @@ def create_transaction(
             )
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    response.headers["PAYMENT-RESPONSE"] = transaction_service.build_payment_response(tx_hash)
+    response.headers["PAYMENT-RESPONSE"] = transaction_service.build_payment_response(tx_hash, network=payment_network)
 
     result = transaction_service.transaction_to_dict(transaction)
     if session_info is not None:

@@ -20,11 +20,14 @@ class SellerServiceTest(unittest.TestCase):
             self.conn,
             evm_address=addr,
             price_wei=1234,
+            price_tron_sun=2000,
             description="test seller",
             keywords=["alpha", "beta"],
             seller_id=None,
         )
         self.assertEqual(seller.status, "active")
+        self.assertEqual(seller.price_conflux_wei, 1234)
+        self.assertEqual(seller.price_tron_sun, 2000)
 
         results = seller_service.search_sellers(self.conn, keyword="alpha")
         self.assertEqual(len(results), 1)

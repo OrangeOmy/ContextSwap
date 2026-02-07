@@ -26,7 +26,7 @@
 ### 4.1 交易前阶段
 | 阶段 | Method + Path | 核心请求数据 | 核心响应数据 |
 |---|---|---|---|
-| Seller 注册 | `POST /v1/sellers/register` | `evm_address, price_wei, description, keywords` | `seller_id, status=active` |
+| Seller 注册 | `POST /v1/sellers/register` | `evm_address, price_wei/price_conflux_wei?, price_tron_sun?, description, keywords` | `seller_id, status=active` |
 | Seller 注销 | `POST /v1/sellers/unregister` | `seller_id` 或 `evm_address` | `seller_id, status=inactive` |
 | Seller 检索 | `GET /v1/sellers/search?keyword=...` | `keyword` | `items[]` |
 
@@ -84,4 +84,3 @@
 - 验收 3：支付成功后会话必有 `chat_id + message_thread_id`。
 - 验收 4：seller 结束标记触发自动关 Topic 并落库 ended。
 - 验收 5：分别调试模式与联合调试模式均可运行并通过测试清单。
-
