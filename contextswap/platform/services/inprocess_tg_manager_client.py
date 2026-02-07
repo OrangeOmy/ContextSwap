@@ -5,6 +5,8 @@ import json
 import re
 from typing import Any
 
+import anyio
+
 from tg_manager.db.engine import connect_sqlite, init_db
 from tg_manager.db.models import Session
 from tg_manager.services.session_service import (
@@ -33,7 +35,17 @@ def _normalize_bot_username(label: str, raw: str) -> str:
 
 
 def _run_async(coro):
-    return asyncio.run(coro)
+    # FastAPI 同步路由运行在线程池中：此处必须回到主事件循环执行，
+    # 否则 Telethon 连接会因“连接后切换 event loop”而报错。
+    try:
+        return anyio.from_thread.run(_await_coro, coro)
+    except RuntimeError:
+        # 非 AnyIO worker thread（如离线脚本/单测）时兜底本地 loop 执行
+        return asyncio.run(coro)
+
+
+async def _await_coro(coro):
+    return await coro
 
 
 def _session_to_dict(session: Session) -> dict[str, Any]:
