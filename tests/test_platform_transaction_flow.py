@@ -69,8 +69,11 @@ class TransactionFlowTest(unittest.TestCase):
             sqlite_path=":memory:",
             rpc_url="http://localhost:8545",
             facilitator_base_url=None,
+            tg_manager_mode="http",
             tg_manager_base_url=None,
             tg_manager_auth_token=None,
+            tg_manager_sqlite_path=":memory:",
+            tg_manager_market_chat_id=None,
         )
         self.conn = connect_sqlite(settings.sqlite_path)
         init_db(self.conn)

@@ -1,5 +1,4 @@
 import unittest
-from unittest.mock import patch
 
 from tg_manager.core.config import ConfigError, load_settings
 from tg_manager.core.security import AuthError, parse_bearer_token, verify_bearer_token
@@ -7,36 +6,29 @@ from tg_manager.core.security import AuthError, parse_bearer_token, verify_beare
 
 class TestConfig(unittest.TestCase):
     def test_load_settings_success_minimal(self) -> None:
-        with patch.dict(
-            "os.environ",
-            {
+        settings = load_settings(
+            environ={
                 "API_AUTH_TOKEN": "secret",
-            },
-            clear=True,
-        ):
-            settings = load_settings()
-            self.assertEqual(settings.api_auth_token, "secret")
-            self.assertEqual(settings.session_timeout_minutes, 10)
-            self.assertEqual(settings.sqlite_path, "./data/tg_manager.sqlite3")
+            }
+        )
+        self.assertEqual(settings.api_auth_token, "secret")
+        self.assertEqual(settings.session_timeout_minutes, 10)
+        self.assertEqual(settings.sqlite_path, "./db/contextswap.sqlite3")
 
     def test_load_settings_missing_required(self) -> None:
-        with patch.dict("os.environ", {}, clear=True):
-            with self.assertRaises(ConfigError) as ctx:
-                load_settings()
-            self.assertIn("API_AUTH_TOKEN", str(ctx.exception))
+        with self.assertRaises(ConfigError) as ctx:
+            load_settings(environ={})
+        self.assertIn("API_AUTH_TOKEN", str(ctx.exception))
 
     def test_load_settings_timeout_invalid_int(self) -> None:
-        with patch.dict(
-            "os.environ",
-            {
-                "API_AUTH_TOKEN": "secret",
-                "SESSION_TIMEOUT_MINUTES": "abc",
-            },
-            clear=True,
-        ):
-            with self.assertRaises(ConfigError) as ctx:
-                load_settings()
-            self.assertIn("SESSION_TIMEOUT_MINUTES", str(ctx.exception))
+        with self.assertRaises(ConfigError) as ctx:
+            load_settings(
+                environ={
+                    "API_AUTH_TOKEN": "secret",
+                    "SESSION_TIMEOUT_MINUTES": "abc",
+                }
+            )
+        self.assertIn("SESSION_TIMEOUT_MINUTES", str(ctx.exception))
 
 
 class TestSecurity(unittest.TestCase):
@@ -58,4 +50,3 @@ class TestSecurity(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

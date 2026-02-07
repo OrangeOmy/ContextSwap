@@ -4,7 +4,8 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 from eth_utils import to_checksum_address
 
-DEFAULT_ENV_PATH = os.path.join(os.path.dirname(__file__), "..", "env", ".env")
+DEFAULT_ENV_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
+LEGACY_ENV_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "env", ".env"))
 
 
 @dataclass(frozen=True)
@@ -16,8 +17,12 @@ class EnvConfig:
 
 
 def load_env(env_path: str | None = None) -> EnvConfig:
-    path = env_path or DEFAULT_ENV_PATH
-    load_dotenv(path)
+    if env_path is not None:
+        load_dotenv(env_path)
+    else:
+        loaded = load_dotenv(DEFAULT_ENV_PATH)
+        if not loaded:
+            load_dotenv(LEGACY_ENV_PATH)
 
     rpc_url = os.getenv("CONFLUX_TESTNET_ENDPOINT", "").strip()
     buyer_address = os.getenv("CONFLUX_TESTNET_SENDER_ADDRESS", "").strip()
@@ -25,13 +30,13 @@ def load_env(env_path: str | None = None) -> EnvConfig:
     buyer_private_key = os.getenv("CONFLUX_TESTNET_PRIVATE_KEY_1", "").strip()
 
     if not rpc_url:
-        raise RuntimeError("Missing CONFLUX_TESTNET_ENDPOINT in env/.env")
+        raise RuntimeError("Missing CONFLUX_TESTNET_ENDPOINT in .env")
     if not buyer_address:
-        raise RuntimeError("Missing CONFLUX_TESTNET_SENDER_ADDRESS in env/.env")
+        raise RuntimeError("Missing CONFLUX_TESTNET_SENDER_ADDRESS in .env")
     if not seller_address:
-        raise RuntimeError("Missing CONFLUX_TESTNET_RECIPIENT_ADDRESS in env/.env")
+        raise RuntimeError("Missing CONFLUX_TESTNET_RECIPIENT_ADDRESS in .env")
     if not buyer_private_key:
-        raise RuntimeError("Missing CONFLUX_TESTNET_PRIVATE_KEY_1 in env/.env")
+        raise RuntimeError("Missing CONFLUX_TESTNET_PRIVATE_KEY_1 in .env")
 
     if not buyer_private_key.startswith("0x"):
         buyer_private_key = f"0x{buyer_private_key}"

@@ -1,5 +1,7 @@
 import httpx
 
+from contextswap.platform.services.session_client import SessionClientError, SessionClientNotFound
+
 
 class TgManagerClient:
     def __init__(self, base_url: str, auth_token: str, *, client: httpx.Client | None = None) -> None:
@@ -31,7 +33,33 @@ class TgManagerClient:
             json=payload,
         )
         if resp.status_code != 200:
-            raise RuntimeError(resp.text)
+            raise SessionClientError(resp.text)
+        return resp.json()
+
+    def get_session(self, *, transaction_id: str) -> dict:
+        resp = self._client.get(
+            f"{self.base_url}/v1/session/{transaction_id}",
+            headers={"Authorization": f"Bearer {self.auth_token}"},
+        )
+        if resp.status_code != 200:
+            if resp.status_code == 404:
+                raise SessionClientNotFound(resp.text)
+            raise SessionClientError(resp.text)
+        return resp.json()
+
+    def end_session(self, *, transaction_id: str, reason: str | None = None) -> dict:
+        payload: dict[str, str] = {"transaction_id": transaction_id}
+        if reason:
+            payload["reason"] = reason
+        resp = self._client.post(
+            f"{self.base_url}/v1/session/end",
+            headers={"Authorization": f"Bearer {self.auth_token}"},
+            json=payload,
+        )
+        if resp.status_code != 200:
+            if resp.status_code == 404:
+                raise SessionClientNotFound(resp.text)
+            raise SessionClientError(resp.text)
         return resp.json()
 
     def close(self) -> None:

@@ -13,6 +13,11 @@ import os
 from dataclasses import dataclass
 from typing import Mapping
 
+from dotenv import load_dotenv
+
+DEFAULT_ENV_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".env"))
+LEGACY_ENV_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
+
 
 class ConfigError(ValueError):
     """配置错误（缺失、格式不正确等）。"""
@@ -96,7 +101,11 @@ class Settings:
     log_level: str
 
 
-def load_settings(environ: Mapping[str, str] | None = None) -> Settings:
+def load_settings(
+    environ: Mapping[str, str] | None = None,
+    *,
+    env_path: str | None = None,
+) -> Settings:
     """从环境变量加载配置。
 
 注意：
@@ -105,7 +114,16 @@ def load_settings(environ: Mapping[str, str] | None = None) -> Settings:
     - Telegram 相关配置在步骤 4 才强制要求，因此这里允许为空。
     """
 
-    env = os.environ if environ is None else environ
+    if environ is None:
+        if env_path is not None:
+            load_dotenv(env_path)
+        else:
+            loaded = load_dotenv(DEFAULT_ENV_PATH)
+            if not loaded:
+                load_dotenv(LEGACY_ENV_PATH)
+        env = os.environ
+    else:
+        env = environ
 
     api_auth_token = _读取必填环境变量(env, "API_AUTH_TOKEN")
 
@@ -132,7 +150,12 @@ def load_settings(environ: Mapping[str, str] | None = None) -> Settings:
         max_value=24 * 60,
     )
 
-    sqlite_path = _读取环境变量(env, "SQLITE_PATH") or "./data/tg_manager.sqlite3"
+    sqlite_path = (
+        _读取环境变量(env, "SQLITE_PATH")
+        or _读取环境变量(env, "TG_MANAGER_SQLITE_PATH")
+        or _读取环境变量(env, "CONTEXTSWAP_SQLITE_PATH")
+        or "./db/contextswap.sqlite3"
+    )
     log_level = _读取环境变量(env, "LOG_LEVEL") or "INFO"
 
     return Settings(

@@ -20,7 +20,7 @@ Important limitation (must understand):
 
 ## 2. Configuration (env / .env)
 
-Create a `.env` in the project root (already in `.gitignore`).
+Create a `.env` in the ContextSwap root directory (already in `.gitignore`).
 
 Required:
 - `API_AUTH_TOKEN`: static token for HTTP API (caller must send `Authorization: Bearer <token>`)
@@ -30,7 +30,7 @@ Required:
 - `TELETHON_SESSION`: Telethon StringSession (must be pre-authorized; server is non-interactive)
 
 Optional:
-- `SQLITE_PATH`: SQLite file path (default `./data/tg_manager.sqlite3`)
+- `SQLITE_PATH`: SQLite file path (shared default `./db/contextswap.sqlite3`)
 - `HOST`: bind address (default `0.0.0.0`)
 - `PORT`: listen port (default `8000`)
 
@@ -41,7 +41,7 @@ MARKET_CHAT_ID=-1001234567890
 TELETHON_API_ID=123456
 TELETHON_API_HASH=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 TELETHON_SESSION=1AABBB... (long string)
-SQLITE_PATH=./data/tg_manager.sqlite3
+SQLITE_PATH=./db/contextswap.sqlite3
 HOST=0.0.0.0
 PORT=8000
 ```
@@ -50,7 +50,7 @@ How to generate `TELETHON_SESSION`:
 - Fill `TELETHON_API_ID` and `TELETHON_API_HASH` first, leave `TELETHON_SESSION` empty.
 - Run:
 ```bash
-set -a && source .env && set +a
+set -a && source ../.env && set +a
 uv run python scripts/export_telethon_session.py
 ```
 - Copy the long string output into `.env` as `TELETHON_SESSION=...`.
@@ -59,7 +59,7 @@ uv run python scripts/export_telethon_session.py
 
 Load `.env` and start:
 ```bash
-set -a && source .env && set +a
+set -a && source ../.env && set +a
 uv run main.py
 ```
 
@@ -187,7 +187,7 @@ uv run python -m unittest discover -s tests -p "test_*.py" -q
 
 ## 2. 配置（环境变量 / .env）
 
-推荐在项目根目录创建 `.env`（该文件已在 `.gitignore` 中忽略，不会被提交）。
+推荐在 ContextSwap 仓库根目录创建 `.env`（该文件已在 `.gitignore` 中忽略，不会被提交）。
 
 必须配置：
 
@@ -199,7 +199,7 @@ uv run python -m unittest discover -s tests -p "test_*.py" -q
 
 可选配置：
 
-- `SQLITE_PATH`：SQLite 文件路径（默认 `./data/tg_manager.sqlite3`）
+- `SQLITE_PATH`：SQLite 文件路径（统一默认 `./db/contextswap.sqlite3`）
 - `HOST`：服务监听地址（默认 `0.0.0.0`）
 - `PORT`：服务端口（默认 `8000`）
 
@@ -211,7 +211,7 @@ MARKET_CHAT_ID=-1001234567890
 TELETHON_API_ID=123456
 TELETHON_API_HASH=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 TELETHON_SESSION=1AABBB...（很长的一串）
-SQLITE_PATH=./data/tg_manager.sqlite3
+SQLITE_PATH=./db/contextswap.sqlite3
 HOST=0.0.0.0
 PORT=8000
 ```
@@ -221,7 +221,7 @@ PORT=8000
 - 运行导出脚本（会要求输入手机号、验证码、可选 2FA 密码）：
 
 ```bash
-set -a && source .env && set +a
+set -a && source ../.env && set +a
 uv run python scripts/export_telethon_session.py
 ```
 
@@ -232,7 +232,7 @@ uv run python scripts/export_telethon_session.py
 加载 `.env` 并启动：
 
 ```bash
-set -a && source .env && set +a
+set -a && source ../.env && set +a
 uv run main.py
 ```
 
