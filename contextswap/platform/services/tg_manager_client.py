@@ -18,6 +18,9 @@ class TgManagerClient:
         buyer_bot_username: str,
         seller_bot_username: str,
         initial_prompt: str,
+        market_slug: str | None = None,
+        question_dir: str | None = None,
+        wait_seconds: int | None = None,
         force_reinject: bool = False,
     ) -> dict:
         payload = {
@@ -25,6 +28,9 @@ class TgManagerClient:
             "buyer_bot_username": buyer_bot_username,
             "seller_bot_username": seller_bot_username,
             "initial_prompt": initial_prompt,
+            "market_slug": market_slug,
+            "question_dir": question_dir,
+            "wait_seconds": wait_seconds,
             "force_reinject": force_reinject,
         }
         resp = self._client.post(

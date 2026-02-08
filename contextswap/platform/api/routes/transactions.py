@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 
 from contextswap.platform.api.deps import get_db, get_facilitator, get_tg_manager
+from contextswap.platform.config import DEFAULT_DEMO_MARKET_SLUG
 from contextswap.platform.db import models
 from eth_utils import to_checksum_address
 
@@ -20,6 +21,9 @@ class TransactionCreateRequest(BaseModel):
     buyer_bot_username: str
     seller_bot_username: str
     initial_prompt: str
+    market_slug: str | None = None
+    question_dir: str | None = None
+    wait_seconds: int | None = None
 
 
 def _get_seller(conn, *, seller_id: str | None, seller_address: str | None) -> models.Seller:
@@ -48,6 +52,20 @@ def create_transaction(
     facilitator=Depends(get_facilitator),
     tg_manager=Depends(get_tg_manager),
 ) -> dict:
+    try:
+        app = request.app
+    except Exception:  # noqa: BLE001
+        app = None
+    app_state = getattr(app, "state", None)
+    settings = getattr(app_state, "settings", None)
+    default_market_slug = DEFAULT_DEMO_MARKET_SLUG
+    default_question_dir = "~/.openclaw/question"
+    default_wait_seconds = 120
+    if settings is not None:
+        default_market_slug = getattr(settings, "delegation_market_slug", default_market_slug)
+        default_question_dir = getattr(settings, "delegation_question_dir", default_question_dir)
+        default_wait_seconds = getattr(settings, "delegation_wait_seconds", default_wait_seconds)
+
     seller = _get_seller(conn, seller_id=payload.seller_id, seller_address=payload.seller_address)
 
     payment_network = (payload.payment_network or "").strip().lower()
@@ -116,10 +134,18 @@ def create_transaction(
         return {"error": str(exc)}
 
     transaction_id = tx_hash
+    resolved_wait_seconds = (
+        payload.wait_seconds
+        if isinstance(payload.wait_seconds, int) and payload.wait_seconds > 0
+        else int(default_wait_seconds)
+    )
     metadata = {
         "buyer_bot_username": payload.buyer_bot_username,
         "seller_bot_username": payload.seller_bot_username,
         "initial_prompt": payload.initial_prompt,
+        "market_slug": (payload.market_slug or default_market_slug).strip(),
+        "question_dir": (payload.question_dir or default_question_dir).strip(),
+        "wait_seconds": resolved_wait_seconds,
     }
     if payload.transaction_id:
         metadata["client_transaction_id"] = payload.transaction_id
@@ -144,6 +170,9 @@ def create_transaction(
                 buyer_bot_username=payload.buyer_bot_username,
                 seller_bot_username=payload.seller_bot_username,
                 initial_prompt=payload.initial_prompt,
+                market_slug=metadata["market_slug"],
+                question_dir=metadata["question_dir"],
+                wait_seconds=int(metadata["wait_seconds"]),
             )
             session_chat_id = session_info.get("chat_id")
             session_thread_id = session_info.get("message_thread_id")

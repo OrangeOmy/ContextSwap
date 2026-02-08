@@ -67,6 +67,15 @@ Optional tg_manager integration:
   - `MARKET_CHAT_ID`
   - Optional Telethon runtime vars: `TELETHON_API_ID`, `TELETHON_API_HASH`, `TELETHON_SESSION`
 
+Delegation demo env (optional):
+- `OPENCLAW_MARKET_SLUG` (default `will-donald-trump-win-the-2028-us-presidential-election`)
+- `OPENCLAW_QUESTION_DIR` (default `~/.openclaw/question`)
+- `OPENCLAW_WAIT_SECONDS` (default `120`)
+- `MOCK_BOTS_ENABLED` (`true/false`, default `false`)
+- `MOCK_BOTS_JSON` (optional JSON map: `bot_username -> deterministic reply`; when using `source .env`, wrap the JSON in single quotes)
+- `MOCK_SELLER_AUTO_END` (`true/false`, default `true`)
+- Example placeholders: `env/delegation_demo.template`
+
 If tg_manager is not configured, the transaction flow still verifies/settles x402 but does not create a Telegram session.
 In unified mode (`TG_MANAGER_MODE=inprocess`), user-side traffic only needs the platform entry on port `9000`.
 By default, platform tables (`sellers`, `transactions`) and tg_manager tables (`sessions`) are stored in the same SQLite file.
@@ -301,6 +310,15 @@ uv run python -m contextswap.platform.main
   - `TG_MANAGER_SQLITE_PATH`（可选，默认跟随 `SQLITE_PATH`）
   - `MARKET_CHAT_ID`
   - 可选 Telethon 变量：`TELETHON_API_ID`、`TELETHON_API_HASH`、`TELETHON_SESSION`
+
+委托 demo 额外变量（可选）：
+- `OPENCLAW_MARKET_SLUG`（默认 `will-donald-trump-win-the-2028-us-presidential-election`）
+- `OPENCLAW_QUESTION_DIR`（默认 `~/.openclaw/question`）
+- `OPENCLAW_WAIT_SECONDS`（默认 `120`）
+- `MOCK_BOTS_ENABLED`（`true/false`，默认 `false`）
+- `MOCK_BOTS_JSON`（可选 JSON：`bot_username -> 固定回复`；如果通过 `source .env` 加载，请用单引号包住整段 JSON）
+- `MOCK_SELLER_AUTO_END`（`true/false`，默认 `true`）
+- 示例占位文件：`env/delegation_demo.template`
 
 若未配置 tg_manager，交易流程仍可完成 x402 验证与结算，但不会创建 Telegram 会话。
 若使用统一联调模式（`TG_MANAGER_MODE=inprocess`），用户侧仅需访问 `9000` 入口。

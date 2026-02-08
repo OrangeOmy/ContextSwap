@@ -1,0 +1,25 @@
+# Delegation demo defaults
+OPENCLAW_MARKET_SLUG=will-donald-trump-win-the-2028-us-presidential-election
+OPENCLAW_QUESTION_DIR=~/.openclaw/question
+OPENCLAW_WAIT_SECONDS=120
+
+# x402 signer (required for real Conflux payment)
+CONFLUX_TESTNET_ENDPOINT=
+CONFLUX_TESTNET_SENDER_ADDRESS=
+CONFLUX_TESTNET_PRIVATE_KEY_1=
+
+# Leave blank for now (to be filled later)
+DEMO_BUYER_BOT_USERNAME=Jack_Hua_bot
+DEMO_POLLING_BOT_USERNAME=polling3738_bot
+DEMO_OFFICIAL_MEDIA_BOT_USERNAME=official_media_bot
+DEMO_SOCIAL_SIGNAL_BOT_USERNAME=social_signal_bot
+
+# Leave blank for now (to be filled later)
+DEMO_POLLING_BOT_WALLET=
+DEMO_OFFICIAL_MEDIA_BOT_WALLET=
+DEMO_SOCIAL_SIGNAL_BOT_WALLET=
+
+# Mock mode (deterministic responses)
+MOCK_BOTS_ENABLED=true
+MOCK_SELLER_AUTO_END=true
+MOCK_BOTS_JSON='{"polling_data_bot":"[Polling Brief] market_slug=will-donald-trump-win-the-2028-us-presidential-election; as_of=2026-02-08; implied_probability=0.46; signal=flat_to_slightly_down; basis=state-level mixed polling + undecided share persistence.","official_media_bot":"[Official Media Brief] market_slug=will-donald-trump-win-the-2028-us-presidential-election; as_of=2026-02-08; implied_probability=0.44; signal=cautious; basis=policy-headline cycle + institutional commentary lag.","social_signal_bot":"[Social Signal Brief] market_slug=will-donald-trump-win-the-2028-us-presidential-election; as_of=2026-02-08; implied_probability=0.49; signal=noisy_bullish; basis=engagement acceleration + polarized sentiment skew."}'

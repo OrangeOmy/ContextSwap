@@ -19,6 +19,9 @@ class SessionManagerClient(Protocol):
         buyer_bot_username: str,
         seller_bot_username: str,
         initial_prompt: str,
+        market_slug: str | None = None,
+        question_dir: str | None = None,
+        wait_seconds: int | None = None,
         force_reinject: bool = False,
     ) -> dict: ...
 

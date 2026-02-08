@@ -19,6 +19,7 @@ from tg_manager.core.config import Settings, load_settings
 from tg_manager.db.engine import connect_sqlite, init_db
 from tg_manager.api.routes.health import router as health_router
 from tg_manager.api.routes.session import router as session_router
+from tg_manager.services.mock_bot_relay import MockBotRelay, parse_mock_bots
 from tg_manager.services.telethon_relay import TelethonRelay
 from tg_manager.services.telethon_service import TelethonService
 
@@ -34,9 +35,11 @@ def create_app(settings: Settings, *, telegram_service: object | None = None) ->
         # Telethon userbot：若配置齐全则启用；否则保持为空（healthz 仍可启动）
         created_client = False
         relay: TelethonRelay | None = None
+        mock_relay: MockBotRelay | None = None
         if telegram_service is not None:
             app.state.telegram = telegram_service
             app.state.relay = None
+            app.state.mock_relay = None
         elif (
             settings.market_chat_id
             and settings.telethon_api_id is not None
@@ -57,14 +60,32 @@ def create_app(settings: Settings, *, telegram_service: object | None = None) ->
             app.state.telegram = TelethonService(client=client)
             relay = TelethonRelay(client=client, conn=conn, market_chat_id=settings.market_chat_id)
             await relay.start()
+            mock_bots = parse_mock_bots(
+                enabled=settings.mock_bots_enabled,
+                raw_json=settings.mock_bots_json,
+                market_slug=settings.delegation_market_slug,
+            )
+            mock_relay = MockBotRelay(
+                client=client,
+                conn=conn,
+                market_chat_id=settings.market_chat_id,
+                relay=relay,
+                responses=mock_bots,
+                seller_auto_end=settings.mock_seller_auto_end,
+            )
+            await mock_relay.start()
             app.state.relay = relay
+            app.state.mock_relay = mock_relay
         else:
             app.state.telegram = None
             app.state.relay = None
+            app.state.mock_relay = None
 
         try:
             yield
         finally:
+            if mock_relay is not None:
+                await mock_relay.stop()
             if relay is not None:
                 await relay.stop()
             if created_client and app.state.telegram is not None:
