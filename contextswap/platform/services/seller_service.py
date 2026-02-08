@@ -159,8 +159,35 @@ def unregister_seller(
     )
 
 
+def list_sellers(
+    conn: sqlite3.Connection,
+    *,
+    limit: int = 100,
+    offset: int = 0,
+    status: str | None = None,
+) -> list[models.Seller]:
+    return models.list_sellers(conn, limit=limit, offset=offset, status=status)
+
+
 def search_sellers(conn: sqlite3.Connection, *, keyword: str) -> list[models.Seller]:
     return models.search_sellers(conn, keyword=keyword)
+
+
+def seller_to_full_dict(seller: models.Seller) -> dict:
+    """返回与 db 表字段一一对应的完整结构（含 id、keywords 原始字符串）。"""
+    return {
+        "id": seller.id,
+        "seller_id": seller.seller_id,
+        "evm_address": seller.evm_address,
+        "price_wei": seller.price_wei,
+        "price_conflux_wei": seller.price_conflux_wei,
+        "price_tron_sun": seller.price_tron_sun,
+        "description": seller.description,
+        "keywords": seller.keywords,
+        "status": seller.status,
+        "created_at": seller.created_at,
+        "updated_at": seller.updated_at,
+    }
 
 
 def seller_to_dict(seller: models.Seller) -> dict:

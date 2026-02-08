@@ -39,6 +39,23 @@ def _get_seller(conn, *, seller_id: str | None, seller_address: str | None) -> m
     return seller
 
 
+@router.get("")
+def list_transactions(
+    conn=Depends(get_db),
+    limit: int = 50,
+    offset: int = 0,
+    status: str | None = None,
+    seller_id: str | None = None,
+) -> dict:
+    """List transactions, newest first. Optional query: limit, offset, status, seller_id."""
+    items = models.list_transactions(
+        conn, limit=limit, offset=offset, status=status, seller_id=seller_id
+    )
+    return {
+        "items": [transaction_service.transaction_to_dict(t) for t in items],
+    }
+
+
 @router.post("/create")
 def create_transaction(
     payload: TransactionCreateRequest,

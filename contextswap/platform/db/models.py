@@ -144,6 +144,28 @@ def get_seller_by_address(conn: sqlite3.Connection, *, evm_address: str) -> Sell
     return _row_to_seller(row) if row else None
 
 
+def list_sellers(
+    conn: sqlite3.Connection,
+    *,
+    limit: int = 100,
+    offset: int = 0,
+    status: str | None = None,
+) -> list[Seller]:
+    if limit < 1 or limit > 200:
+        limit = 100
+    if offset < 0:
+        offset = 0
+    query = "SELECT * FROM sellers WHERE 1=1"
+    params: list[Any] = []
+    if status is not None:
+        query += " AND status = ?"
+        params.append(status)
+    query += " ORDER BY updated_at DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+    rows = conn.execute(query, params).fetchall()
+    return [_row_to_seller(row) for row in rows]
+
+
 def search_sellers(conn: sqlite3.Connection, *, keyword: str) -> list[Seller]:
     kw = (keyword or "").strip().lower()
     if not kw:
@@ -263,6 +285,33 @@ def get_transaction_by_id(conn: sqlite3.Connection, *, transaction_id: str) -> T
         (transaction_id,),
     ).fetchone()
     return _row_to_transaction(row) if row else None
+
+
+def list_transactions(
+    conn: sqlite3.Connection,
+    *,
+    limit: int = 50,
+    offset: int = 0,
+    status: str | None = None,
+    seller_id: str | None = None,
+) -> list[Transaction]:
+    """List transactions, newest first. Optional filter by status or seller_id."""
+    if limit < 1 or limit > 200:
+        limit = 50
+    if offset < 0:
+        offset = 0
+    query = "SELECT * FROM transactions WHERE 1=1"
+    params: list[Any] = []
+    if status is not None:
+        query += " AND status = ?"
+        params.append(status)
+    if seller_id is not None:
+        query += " AND seller_id = ?"
+        params.append(seller_id)
+    query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+    rows = conn.execute(query, params).fetchall()
+    return [_row_to_transaction(row) for row in rows]
 
 
 def update_transaction_fields(
