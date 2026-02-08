@@ -1,5 +1,5 @@
 import { Transaction } from '../api/client';
-import { Hash, Clock } from 'lucide-react';
+import { Hash } from 'lucide-react';
 
 interface TransactionListProps {
   transactions: Transaction[];

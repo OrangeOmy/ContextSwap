@@ -1,63 +1,51 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  ArrowRight,
-  Zap,
-  Shield,
-  MessageSquare,
-  Users,
-  UserCheck,
-  Sun,
-  Moon,
-} from 'lucide-react';
-import { useTheme } from '../contexts/ThemeContext';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
-} from 'recharts';
+import { ArrowRight, Github, Moon, Sun } from 'lucide-react';
 import { api, Seller, Transaction } from '../api/client';
+import { useTheme } from '../contexts/ThemeContext';
 
-type BuyerStats = {
-  buyer_address: string;
-  tx_count: number;
-  total_wei: number;
-  last_tx_at: string;
+type GraphNode = {
+  seller: Seller;
+  x: number;
+  y: number;
+  degree: number;
+  active: boolean;
+  inCount: number;
+  outCount: number;
+  totalCount: number;
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  active: '#4b5563',
-  inactive: '#9ca3af',
+type GraphEdge = {
+  from: string;
+  to: string;
+  weight: number;
 };
 
-function deriveBuyers(transactions: Transaction[]): BuyerStats[] {
-  const byAddr: Record<string, { count: number; total: number; last: string }> = {};
-  for (const t of transactions) {
-    const addr = t.buyer_address;
-    if (!byAddr[addr]) {
-      byAddr[addr] = { count: 0, total: 0, last: t.created_at };
-    }
-    byAddr[addr].count += 1;
-    byAddr[addr].total += t.price_wei;
-    if (t.created_at > byAddr[addr].last) byAddr[addr].last = t.created_at;
+const HERO_LINES = [
+  'ContextSwap: Agent Economics Layer',
+  'Enable scalable multi-agent collaboration',
+] as const;
+
+function hashToUnit(input: string, salt = 0): number {
+  let h = 2166136261 ^ salt;
+  for (let i = 0; i < input.length; i += 1) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 16777619);
   }
-  return Object.entries(byAddr).map(([buyer_address, v]) => ({
-    buyer_address,
-    tx_count: v.count,
-    total_wei: v.total,
-    last_tx_at: v.last,
-  }));
+  return ((h >>> 0) % 10000) / 10000;
 }
 
-function formatAddr(addr: string) {
-  return `${addr.slice(0, 8)}…${addr.slice(-6)}`;
+function shortId(id: string): string {
+  if (id.length <= 14) return id;
+  return `${id.slice(0, 8)}…${id.slice(-4)}`;
+}
+
+function resolveSellerChains(seller: Seller): string[] {
+  const chains: string[] = [];
+  if (seller.price_tron_sun != null && seller.price_tron_sun > 0) chains.push('Tron');
+  if (seller.price_conflux_wei != null && seller.price_conflux_wei > 0) chains.push('Conflux');
+  if (chains.length === 0 && seller.price_wei != null && seller.price_wei > 0) chains.push('Conflux');
+  return chains;
 }
 
 export default function Cover() {
@@ -65,344 +53,399 @@ export default function Cover() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [heroIndex, setHeroIndex] = useState(0);
+  const { theme, toggleTheme } = useTheme();
+  const isDark = theme === 'dark';
 
   useEffect(() => {
-    Promise.all([api.sellers.list({ limit: 200 }), api.transactions.list({ limit: 500 })])
+    Promise.all([api.sellers.list({ limit: 300 }), api.transactions.list({ limit: 500 })])
       .then(([sRes, tRes]) => {
         setSellers(sRes.items ?? []);
         setTransactions(tRes.items ?? []);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : '加载失败'))
+      .catch((e) => setError(e instanceof Error ? e.message : 'Load failed'))
       .finally(() => setLoading(false));
   }, []);
 
-  const activeSellers = sellers.filter((s) => s.status === 'active');
-  const buyers = deriveBuyers(transactions);
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setHeroIndex((prev) => (prev + 1) % HERO_LINES.length);
+    }, 3200);
+    return () => window.clearInterval(timer);
+  }, []);
 
-  const sellerStatusData = [
-    { name: '活跃', value: activeSellers.length, color: STATUS_COLORS.active },
-    { name: '非活跃', value: sellers.length - activeSellers.length, color: STATUS_COLORS.inactive },
-  ].filter((d) => d.value > 0);
+  const activeSellers = useMemo(
+    () => sellers.filter((seller) => seller.status === 'active'),
+    [sellers]
+  );
 
-  const sellerPriceBuckets: Record<string, number> = {};
-  activeSellers.forEach((s) => {
-    const p = s.price_conflux_wei ?? s.price_wei ?? 0;
-    const cfx = p / 1e18;
-    const bucket =
-      cfx === 0 ? '0' : cfx < 0.001 ? '<0.001' : cfx < 0.01 ? '0.001-0.01' : cfx < 0.1 ? '0.01-0.1' : '≥0.1';
-    sellerPriceBuckets[bucket] = (sellerPriceBuckets[bucket] ?? 0) + 1;
-  });
-  const sellerPriceData = ['0', '<0.001', '0.001-0.01', '0.01-0.1', '≥0.1'].map((name) => ({
-    name,
-    count: sellerPriceBuckets[name] ?? 0,
-  }));
+  const graph = useMemo(() => {
+    const orderedSellers = [...sellers].sort((a, b) => {
+      if (a.status !== b.status) return a.status === 'active' ? -1 : 1;
+      return a.seller_id.localeCompare(b.seller_id);
+    });
 
-  const buyerTxCountData = [...buyers]
-    .sort((a, b) => b.tx_count - a.tx_count)
-    .slice(0, 8)
-    .map((b) => ({
-      address: formatAddr(b.buyer_address),
-      交易笔数: b.tx_count,
-    }));
+    const sellerIds = new Set(orderedSellers.map((seller) => seller.seller_id));
+    const edgeMap = new Map<string, GraphEdge>();
+    const inCountMap = new Map<string, number>();
+    const outCountMap = new Map<string, number>();
 
-  const buyerVolumeData = [...buyers]
-    .sort((a, b) => b.total_wei - a.total_wei)
-    .slice(0, 8)
-    .map((b) => ({
-      address: formatAddr(b.buyer_address),
-      支付CFX: Number((b.total_wei / 1e18).toFixed(6)),
-    }));
+    for (const tx of transactions) {
+      const buyer = tx.buyer_address;
+      const seller = tx.seller_id;
+      if (!sellerIds.has(buyer) || !sellerIds.has(seller) || buyer === seller) continue;
 
-  const { theme, toggleTheme } = useTheme();
+      inCountMap.set(seller, (inCountMap.get(seller) ?? 0) + 1);
+      outCountMap.set(buyer, (outCountMap.get(buyer) ?? 0) + 1);
+
+      const [from, to] = [buyer, seller].sort();
+      const key = `${from}|${to}`;
+      const current = edgeMap.get(key);
+      if (current) {
+        current.weight += 1;
+      } else {
+        edgeMap.set(key, { from, to, weight: 1 });
+      }
+    }
+
+    const degreeMap = new Map<string, number>();
+    edgeMap.forEach((edge) => {
+      degreeMap.set(edge.from, (degreeMap.get(edge.from) ?? 0) + edge.weight);
+      degreeMap.set(edge.to, (degreeMap.get(edge.to) ?? 0) + edge.weight);
+    });
+
+    const layoutSellers = [...orderedSellers].sort(
+      (a, b) => hashToUnit(a.seller_id, 3) - hashToUnit(b.seller_id, 3)
+    );
+
+    const total = layoutSellers.length;
+    const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+    const maxRadius = 235;
+
+    const nodes: GraphNode[] = layoutSellers.map((seller, idx) => {
+      const seedA = hashToUnit(seller.seller_id, 11);
+      const seedR = hashToUnit(seller.seller_id, 29);
+      const angle = idx * goldenAngle + seedA * 1.7;
+      const radialBase = Math.sqrt((idx + 0.8) / Math.max(total, 1));
+      const jitter = (seedR - 0.5) * 34;
+      const radiusFromCenter = Math.min(
+        maxRadius,
+        Math.max(16, radialBase * maxRadius + jitter)
+      );
+      const x = 520 + Math.cos(angle) * radiusFromCenter;
+      const y = 280 + Math.sin(angle) * radiusFromCenter;
+      return {
+        seller,
+        x,
+        y,
+        degree: degreeMap.get(seller.seller_id) ?? 0,
+        active: seller.status === 'active',
+        inCount: inCountMap.get(seller.seller_id) ?? 0,
+        outCount: outCountMap.get(seller.seller_id) ?? 0,
+        totalCount:
+          (inCountMap.get(seller.seller_id) ?? 0) +
+          (outCountMap.get(seller.seller_id) ?? 0),
+      };
+    });
+
+    const nodeById = new Map(nodes.map((node) => [node.seller.seller_id, node]));
+
+    return {
+      nodes,
+      edges: [...edgeMap.values()],
+      nodeById,
+      maxDegree: Math.max(...nodes.map((node) => node.degree), 1),
+    };
+  }, [sellers, transactions]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-900 flex flex-col">
-      <header className="px-6 py-4 flex items-center justify-between border-b border-gray-200/80 dark:border-gray-800">
-        <span className="text-lg font-semibold text-gray-800 dark:text-white">ContextSwap</span>
-        <nav className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400 transition-colors"
-            aria-label={theme === 'dark' ? '切换到浅色' : '切换到深色'}
-          >
-            {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          </button>
-          <Link to="/dashboard" className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
-            Dashboard
-          </Link>
-          <Link to="/transactions" className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
-            Transactions
-          </Link>
-        </nav>
-      </header>
-
-      <main className="flex-1 px-6 py-8 max-w-6xl mx-auto w-full">
-        <section className="text-center mb-12">
-          <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 dark:text-white tracking-tight">
-            ContextSwap
-          </h1>
-          <p className="mt-4 text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-            P2P context trading — exchange context with humans or AI agents. Pay with Conflux or Tron, verified on-chain. Powered by x402.
-          </p>
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+    <div
+      className={`min-h-screen transition-colors ${
+        isDark
+          ? 'bg-[radial-gradient(circle_at_20%_20%,#1f293726,transparent_35%),radial-gradient(circle_at_80%_0%,#0ea5e926,transparent_30%),linear-gradient(180deg,#111827_0%,#0b1220_55%,#05070d_100%)] text-white'
+          : 'bg-[radial-gradient(circle_at_20%_20%,#dbeafe,transparent_38%),radial-gradient(circle_at_85%_0%,#a7f3d0,transparent_30%),linear-gradient(180deg,#f8fafc_0%,#e2e8f0_55%,#dbe4ee_100%)] text-slate-900'
+      }`}
+    >
+      <header
+        className={`sticky top-0 z-30 border-b backdrop-blur-md transition-colors ${
+          isDark ? 'border-white/10 bg-[#0b1020cc]' : 'border-slate-200/80 bg-white/75'
+        }`}
+      >
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+          <span className="text-lg font-semibold tracking-wide">ContextSwap</span>
+          <nav className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className={`p-2 rounded-lg border transition-colors ${
+                isDark
+                  ? 'border-white/10 hover:border-white/30 hover:bg-white/10'
+                  : 'border-slate-300 hover:border-slate-400 hover:bg-slate-100'
+              }`}
+              aria-label={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
+            >
+              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
             <Link
               to="/dashboard"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-medium rounded-lg hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors"
+              className={`text-sm ${isDark ? 'text-slate-200 hover:text-white' : 'text-slate-700 hover:text-slate-900'}`}
             >
-              Open Dashboard
-              <ArrowRight className="w-4 h-4" />
+              Dashboard
             </Link>
             <Link
               to="/transactions"
-              className="inline-flex items-center gap-2 px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              className={`text-sm ${isDark ? 'text-slate-200 hover:text-white' : 'text-slate-700 hover:text-slate-900'}`}
             >
-              View Transactions
+              Transactions
             </Link>
-          </div>
-        </section>
+          </nav>
+        </div>
+      </header>
 
-        <section className="mb-12 grid grid-cols-1 sm:grid-cols-3 gap-6 text-left">
-          <div className="flex flex-col items-center sm:items-start">
-            <div className="p-3 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
-              <Zap className="w-6 h-6" />
-            </div>
-            <h3 className="mt-3 font-semibold text-gray-900 dark:text-white">x402 Payments</h3>
-            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Pay for context with Conflux or Tron.</p>
-          </div>
-          <div className="flex flex-col items-center sm:items-start">
-            <div className="p-3 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
-              <Shield className="w-6 h-6" />
-            </div>
-            <h3 className="mt-3 font-semibold text-gray-900 dark:text-white">On-chain Verification</h3>
-            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Settlement verified by facilitator.</p>
-          </div>
-          <div className="flex flex-col items-center sm:items-start">
-            <div className="p-3 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
-              <MessageSquare className="w-6 h-6" />
-            </div>
-            <h3 className="mt-3 font-semibold text-gray-900 dark:text-white">Telegram Sessions</h3>
-            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Deal in a dedicated topic.</p>
+      <main className="max-w-7xl mx-auto px-6 pt-6 pb-16">
+        <section className="text-center mb-12">
+          <h1
+            key={heroIndex}
+            className={`hero-title-switch text-4xl sm:text-6xl font-semibold tracking-tight ${
+              isDark ? 'text-white' : 'text-slate-900'
+            }`}
+          >
+            {HERO_LINES[heroIndex]}
+          </h1>
+          <p className={`mt-5 max-w-3xl mx-auto ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+            Real-time seller topology, chain-aware transaction visibility, and production-style agent marketplace telemetry.
+          </p>
+          <div className="mt-8 flex items-center justify-center">
+            <Link
+              to="/dashboard"
+              className="group inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-cyan-400 via-blue-500 to-violet-500 px-8 py-3.5 text-sm font-semibold text-white shadow-[0_0_40px_-12px_rgba(59,130,246,0.8)] transition-transform hover:scale-105"
+            >
+              Enter Dashboard
+              <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+            </Link>
           </div>
         </section>
 
         {error && (
-          <div className="mb-6 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm">
-            {error} · 请确认后端已启动
+          <div
+            className={`mb-8 rounded-xl border p-4 text-sm ${
+              isDark
+                ? 'border-red-300/30 bg-red-900/20 text-red-200'
+                : 'border-red-300 bg-red-50 text-red-700'
+            }`}
+          >
+            {error}
           </div>
         )}
 
-        <section className="mb-10">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <Users className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-            活跃买家与卖家概览
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 shadow-sm flex items-center gap-4">
-              <div className="p-3 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
-                <UserCheck className="w-8 h-8" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{activeSellers.length}</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">活跃卖家</p>
-              </div>
-            </div>
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 shadow-sm flex items-center gap-4">
-              <div className="p-3 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
-                <Users className="w-8 h-8" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{buyers.length}</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">活跃买家（有交易记录）</p>
-              </div>
+        <section
+          className={`mb-12 rounded-2xl border p-4 sm:p-6 ${
+            isDark
+              ? 'border-white/10 bg-[#0b1324]/85 shadow-[0_20px_50px_-30px_rgba(14,165,233,0.6)]'
+              : 'border-slate-300/70 bg-white/70 shadow-[0_20px_50px_-30px_rgba(30,41,59,0.35)]'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-lg sm:text-xl font-medium">Agent Topology Graph</h2>
+            <div className={`text-xs sm:text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+              Sellers: {sellers.length} · Edges: {graph.edges.length} · Active: {activeSellers.length}
             </div>
           </div>
 
-          <h3 className="text-lg font-medium text-gray-800 dark:text-gray-200 mb-3">卖家 / 买家属性可视化</h3>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 shadow-sm">
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">卖家状态分布</p>
-              {sellerStatusData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={200}>
-                  <PieChart>
-                    <Pie
-                      data={sellerStatusData}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={70}
-                      label={({ name, value }) => `${name}: ${value}`}
+          <div
+            className={`rounded-xl border overflow-hidden ${
+              isDark ? 'border-white/10 bg-[#070b16]' : 'border-slate-300/70 bg-slate-100/70'
+            }`}
+          >
+            <svg viewBox="0 0 1040 560" className="w-full h-[420px] sm:h-[520px]">
+              <defs>
+                <linearGradient id="edgeGradient" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stopColor="#0ea5e9" stopOpacity="0.35" />
+                  <stop offset="100%" stopColor="#a855f7" stopOpacity="0.28" />
+                </linearGradient>
+                <radialGradient id="activeNode" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stopColor="#86efac" />
+                  <stop offset="100%" stopColor="#16a34a" />
+                </radialGradient>
+                <radialGradient id="inactiveNode" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stopColor="#94a3b8" />
+                  <stop offset="100%" stopColor="#475569" />
+                </radialGradient>
+              </defs>
+
+              <circle
+                cx={520}
+                cy={280}
+                r={250}
+                fill="none"
+                stroke={isDark ? '#1e293b' : '#94a3b8'}
+                strokeOpacity={isDark ? 0.45 : 0.35}
+                strokeWidth={1}
+              />
+              <circle
+                cx={520}
+                cy={280}
+                r={170}
+                fill="none"
+                stroke={isDark ? '#1e293b' : '#94a3b8'}
+                strokeOpacity={isDark ? 0.28 : 0.26}
+                strokeWidth={1}
+              />
+              <circle
+                cx={520}
+                cy={280}
+                r={90}
+                fill="none"
+                stroke={isDark ? '#1e293b' : '#94a3b8'}
+                strokeOpacity={isDark ? 0.2 : 0.2}
+                strokeWidth={1}
+              />
+
+              {graph.edges.map((edge) => {
+                const a = graph.nodeById.get(edge.from);
+                const b = graph.nodeById.get(edge.to);
+                if (!a || !b) return null;
+                const dx = b.x - a.x;
+                const dy = b.y - a.y;
+                const len = Math.hypot(dx, dy) || 1;
+                const nx = -dy / len;
+                const ny = dx / len;
+                const bendSeed = hashToUnit(`${edge.from}:${edge.to}`, 41) > 0.5 ? 1 : -1;
+                const bend = Math.min(30, 10 + edge.weight * 3.5) * bendSeed;
+                const cx = (a.x + b.x) / 2 + nx * bend;
+                const cy = (a.y + b.y) / 2 + ny * bend;
+                return (
+                  <path
+                    key={`${edge.from}-${edge.to}`}
+                    d={`M ${a.x} ${a.y} Q ${cx} ${cy} ${b.x} ${b.y}`}
+                    stroke="url(#edgeGradient)"
+                    fill="none"
+                    strokeWidth={Math.min(0.9 + edge.weight * 0.3, 3.2)}
+                    strokeLinecap="round"
+                  />
+                );
+              })}
+
+              {graph.nodes.map((node) => {
+                const radius = 6 + Math.min(node.degree / graph.maxDegree, 1) * 8;
+                return (
+                  <g key={node.seller.seller_id}>
+                    <title>
+                      {`Seller ID: ${node.seller.seller_id}
+Status: ${node.active ? 'active' : 'inactive'}
+Connected Degree: ${node.degree}
+Inbound Transfers: ${node.inCount}
+Outbound Transfers: ${node.outCount}
+Total Related Transfers: ${node.totalCount}
+Description: ${node.seller.description || 'N/A'}`}
+                    </title>
+                    {node.active && (
+                      <circle
+                        cx={node.x}
+                        cy={node.y}
+                        r={radius + 8}
+                        className="animate-pulse"
+                        fill="#22c55e"
+                        fillOpacity="0.2"
+                      />
+                    )}
+                    <circle
+                      cx={node.x}
+                      cy={node.y}
+                      r={radius}
+                      fill={node.active ? 'url(#activeNode)' : 'url(#inactiveNode)'}
+                      stroke={node.active ? '#22c55e' : '#64748b'}
+                      strokeWidth={1.5}
+                    />
+                    <text
+                      x={node.x}
+                      y={node.y - (radius + 10)}
+                      textAnchor="middle"
+                      fontSize="10"
+                      fill={node.active ? (isDark ? '#dcfce7' : '#14532d') : (isDark ? '#cbd5e1' : '#334155')}
                     >
-                      {sellerStatusData.map((_, i) => (
-                        <Cell key={i} fill={sellerStatusData[i].color} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <p className="text-gray-400 dark:text-gray-500 text-sm py-8 text-center">暂无卖家数据</p>
-              )}
-            </div>
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 shadow-sm">
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">卖家价格分布 (CFX)</p>
-              {sellerPriceData.some((d) => d.count > 0) ? (
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={sellerPriceData} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
-                    <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip />
-                    <Bar dataKey="count" fill="#4b5563" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <p className="text-gray-400 dark:text-gray-500 text-sm py-8 text-center">暂无卖家数据</p>
-              )}
-            </div>
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 shadow-sm">
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">买家交易笔数 Top8</p>
-              {buyerTxCountData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={buyerTxCountData} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
-                    <XAxis dataKey="address" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip />
-                    <Bar dataKey="交易笔数" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <p className="text-gray-400 dark:text-gray-500 text-sm py-8 text-center">暂无买家交易数据</p>
-              )}
-            </div>
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 shadow-sm">
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">买家支付金额 Top8 (CFX)</p>
-              {buyerVolumeData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={buyerVolumeData} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
-                    <XAxis dataKey="address" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip />
-                    <Bar dataKey="支付CFX" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <p className="text-gray-400 dark:text-gray-500 text-sm py-8 text-center">暂无买家交易数据</p>
-              )}
-            </div>
+                      {shortId(node.seller.seller_id)}
+                    </text>
+                  </g>
+                );
+              })}
+            </svg>
           </div>
 
-          <h3 className="text-lg font-medium text-gray-800 dark:text-gray-200 mb-3">卖家表格</h3>
-          <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden mb-8">
-            {loading ? (
-              <div className="p-8 text-center text-gray-500">加载中...</div>
-            ) : sellers.length === 0 ? (
-              <div className="p-8 text-center text-gray-500">暂无卖家</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-gray-50 dark:bg-gray-700/50 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      <th className="py-3 px-4">Seller ID</th>
-                      <th className="py-3 px-4">地址</th>
-                      <th className="py-3 px-4">价格 (CFX/TRX)</th>
-                      <th className="py-3 px-4">描述</th>
-                      <th className="py-3 px-4">关键词</th>
-                      <th className="py-3 px-4">状态</th>
-                      <th className="py-3 px-4">创建时间</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sellers.map((s) => {
-                      const priceCfx = s.price_conflux_wei ?? s.price_wei;
-                      const priceStr = priceCfx
-                        ? `${(priceCfx / 1e18).toFixed(6)} CFX`
-                        : s.price_tron_sun
-                          ? `${(s.price_tron_sun / 1e6).toFixed(4)} TRX`
-                          : '—';
-                      const kw =
-                        typeof s.keywords === 'string'
-                          ? s.keywords
-                          : Array.isArray(s.keywords)
-                            ? s.keywords.join(', ')
-                            : '—';
-                      return (
-                        <tr key={s.seller_id} className="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50/80 dark:hover:bg-gray-700/50">
-                          <td className="py-3 px-4 font-mono text-gray-900 dark:text-gray-100">{s.seller_id}</td>
-                          <td className="py-3 px-4 font-mono text-gray-600 dark:text-gray-400">{formatAddr(s.evm_address)}</td>
-                          <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{priceStr}</td>
-                          <td className="py-3 px-4 text-gray-600 dark:text-gray-400 max-w-[200px] truncate" title={s.description}>
-                            {s.description || '—'}
-                          </td>
-                          <td className="py-3 px-4 text-gray-600 dark:text-gray-400 max-w-[160px] truncate" title={kw}>
-                            {kw || '—'}
-                          </td>
-                          <td className="py-3 px-4">
-                            <span
-                              className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
-                                s.status === 'active' ? 'bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                              }`}
-                            >
-                              {s.status}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-gray-500 dark:text-gray-400">
-                            {new Date(s.created_at).toLocaleDateString('zh-CN')}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
+          <div className={`mt-4 flex items-center gap-5 text-xs ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+            <div className="inline-flex items-center gap-2">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-400 animate-pulse" />
+              Active seller
+            </div>
+            <div className="inline-flex items-center gap-2">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-slate-500" />
+              Inactive seller
+            </div>
           </div>
+        </section>
 
-          <h3 className="text-lg font-medium text-gray-800 dark:text-gray-200 mb-3">买家表格</h3>
-          <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
-            {loading ? (
-              <div className="p-8 text-center text-gray-500 dark:text-gray-400">加载中...</div>
-            ) : buyers.length === 0 ? (
-              <div className="p-8 text-center text-gray-500 dark:text-gray-400">暂无买家（无交易记录）</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-gray-50 dark:bg-gray-700/50 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      <th className="py-3 px-4">买家地址</th>
-                      <th className="py-3 px-4">交易笔数</th>
-                      <th className="py-3 px-4">总支付 (CFX)</th>
-                      <th className="py-3 px-4">最近交易时间</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {buyers
-                      .sort((a, b) => new Date(b.last_tx_at).getTime() - new Date(a.last_tx_at).getTime())
-                      .map((b) => (
-                        <tr key={b.buyer_address} className="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50/80 dark:hover:bg-gray-700/50">
-                          <td className="py-3 px-4 font-mono text-gray-900 dark:text-gray-100" title={b.buyer_address}>
-                            {formatAddr(b.buyer_address)}
-                          </td>
-                          <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{b.tx_count}</td>
-                          <td className="py-3 px-4 text-gray-700 dark:text-gray-300">
-                            {(b.total_wei / 1e18).toFixed(6)}
-                          </td>
-                          <td className="py-3 px-4 text-gray-500 dark:text-gray-400">
-                            {new Date(b.last_tx_at).toLocaleString('zh-CN')}
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+        <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {loading ? (
+            <div className={`col-span-full py-16 text-center ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>Loading sellers...</div>
+          ) : (
+            sellers.map((seller) => {
+              const chains = resolveSellerChains(seller);
+              return (
+                <article
+                  key={seller.seller_id}
+                  className={`rounded-xl border p-4 backdrop-blur-sm transition-colors ${
+                    isDark
+                      ? 'border-white/10 bg-white/5 hover:border-cyan-300/40'
+                      : 'border-slate-300/70 bg-white/80 hover:border-cyan-500/50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`font-mono text-xs ${isDark ? 'text-cyan-200' : 'text-cyan-700'}`}>{shortId(seller.seller_id)}</span>
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${
+                        seller.status === 'active'
+                          ? 'bg-green-500/20 text-green-200'
+                          : 'bg-slate-500/20 text-slate-300'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-1.5 w-1.5 rounded-full ${
+                          seller.status === 'active' ? 'bg-green-300 animate-pulse' : 'bg-slate-400'
+                        }`}
+                      />
+                      {seller.status}
+                    </span>
+                  </div>
+                  <p className={`text-sm line-clamp-3 min-h-[60px] ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{seller.description || 'No description'}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {chains.map((chain) => (
+                      <span
+                        key={`${seller.seller_id}-${chain}`}
+                        className={`rounded-md px-2 py-1 text-[11px] ${
+                          isDark ? 'bg-cyan-500/10 text-cyan-200' : 'bg-cyan-100 text-cyan-700'
+                        }`}
+                      >
+                        {chain}
+                      </span>
+                    ))}
+                  </div>
+                </article>
+              );
+            })
+          )}
         </section>
       </main>
 
-      <footer className="py-4 text-center text-sm text-gray-400 dark:text-gray-500 border-t border-gray-200 dark:border-gray-800">
-        ContextSwap · Powered by x402
+      <footer className={`border-t py-6 text-center text-sm ${isDark ? 'border-white/10 text-slate-300' : 'border-slate-300/80 text-slate-600'}`}>
+        <a
+          href="https://github.com/OrangeOmy/ContextSwap"
+          target="_blank"
+          rel="noreferrer"
+          className={`inline-flex items-center gap-2 ${isDark ? 'hover:text-white' : 'hover:text-slate-900'}`}
+        >
+          <Github className="w-4 h-4" />
+          https://github.com/OrangeOmy/ContextSwap
+        </a>
       </footer>
     </div>
   );

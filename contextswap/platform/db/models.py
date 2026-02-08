@@ -45,6 +45,7 @@ class Transaction:
     error_reason: str | None
     created_at: str
     updated_at: str
+    payment_chain: str | None = None
 
 
 def _row_to_seller(row: sqlite3.Row) -> Seller:
@@ -69,6 +70,10 @@ def _row_to_seller(row: sqlite3.Row) -> Seller:
 
 
 def _row_to_transaction(row: sqlite3.Row) -> Transaction:
+    payment_chain = None
+    if "payment_chain" in row.keys():
+        raw = row["payment_chain"]
+        payment_chain = None if raw is None else str(raw)
     return Transaction(
         id=int(row["id"]),
         transaction_id=str(row["transaction_id"]),
@@ -85,6 +90,7 @@ def _row_to_transaction(row: sqlite3.Row) -> Transaction:
         error_reason=row["error_reason"],
         created_at=str(row["created_at"]),
         updated_at=str(row["updated_at"]),
+        payment_chain=payment_chain,
     )
 
 

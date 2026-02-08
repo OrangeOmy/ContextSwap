@@ -3,6 +3,7 @@ import { Search, Users, Activity, TrendingUp, Zap } from 'lucide-react';
 import {
   BarChart,
   Bar,
+  Cell,
   XAxis,
   YAxis,
   Tooltip,
@@ -162,17 +163,12 @@ function Dashboard() {
                 <Legend />
                 <Bar
                   dataKey="value"
-                  nameKey="name"
                   radius={[0, 4, 4, 0]}
                   label={{ position: 'right', fontSize: 11 }}
                 >
-                  {statusChartData.map((entry, i) => (
-                    <rect
+                  {statusChartData.map((entry) => (
+                    <Cell
                       key={entry.name}
-                      x={0}
-                      y={0}
-                      width="100%"
-                      height="100%"
                       fill={STATUS_COLORS[entry.name] ?? '#94a3b8'}
                     />
                   ))}
@@ -274,8 +270,16 @@ function Dashboard() {
         </div>
       )}
 
-      <footer className="mt-12 pt-6 border-t border-gray-200 dark:border-gray-700 text-sm text-gray-400 dark:text-gray-500">
-        Powered by x402
+      <footer className="mt-12 pt-6 border-t border-gray-200 dark:border-gray-700 text-sm text-gray-400 dark:text-gray-500 flex flex-wrap items-center justify-between gap-3">
+        <span>Powered by x402</span>
+        <a
+          href="https://github.com/OrangeOmy/ContextSwap"
+          target="_blank"
+          rel="noreferrer"
+          className="hover:text-gray-700 dark:hover:text-gray-300"
+        >
+          github.com/OrangeOmy/ContextSwap
+        </a>
       </footer>
     </div>
   );

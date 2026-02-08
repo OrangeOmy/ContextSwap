@@ -165,6 +165,7 @@ def transaction_to_dict(transaction: models.Transaction) -> dict:
             payment_network = "conflux"
     except Exception:  # noqa: BLE001
         payment_network = None
+    payment_chain = transaction.payment_chain or payment_network
     metadata = {}
     try:
         metadata = json.loads(transaction.metadata_json) if transaction.metadata_json else {}
@@ -175,6 +176,7 @@ def transaction_to_dict(transaction: models.Transaction) -> dict:
         "seller_id": transaction.seller_id,
         "buyer_address": transaction.buyer_address,
         "price_wei": transaction.price_wei,
+        "payment_chain": payment_chain,
         "payment_network": payment_network,
         "status": transaction.status,
         "tx_hash": transaction.tx_hash,

@@ -25,6 +25,7 @@ export interface Transaction {
   seller_id: string;
   buyer_address: string;
   price_wei: number;
+  payment_chain?: 'tron' | 'conflux' | null;
   payment_network?: string;
   status: string;
   tx_hash?: string | null;
