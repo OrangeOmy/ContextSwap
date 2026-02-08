@@ -111,15 +111,21 @@ class TestHttpApiStep3(unittest.TestCase):
             self.assertEqual(meta1["buyer_bot_username"], "buyer_bot")
             self.assertEqual(meta1["seller_bot_username"], "seller_bot")
             self.assertEqual(meta1["initial_prompt"], "请给出报告")
+            self.assertEqual(meta1["market_slug"], "will-donald-trump-win-the-2028-us-presidential-election")
+            self.assertEqual(meta1["question_dir"], "~/.openclaw/question")
+            self.assertEqual(meta1["wait_seconds"], 120)
             self.assertFalse(meta1["telegram_stub"])
 
             self.assertEqual(len(tg.created_topics), 1)
             self.assertEqual(len(tg.sent_messages), 1)
             sent_text = tg.sent_messages[0][2]
-            self.assertIn("@buyer_bot", sent_text)
+            self.assertNotIn("@buyer_bot", sent_text)
             self.assertIn("@seller_bot", sent_text)
             self.assertIn("初始指令：", sent_text)
             self.assertIn("请给出报告", sent_text)
+            self.assertIn("market_slug", sent_text)
+            self.assertIn("~/.openclaw/question", sent_text)
+            self.assertIn("120s", sent_text)
 
             resp2 = client.post(
                 "/v1/session/create",
@@ -201,7 +207,7 @@ class TestHttpApiStep3(unittest.TestCase):
             self.assertEqual(resp2.status_code, 200)
             self.assertEqual(len(tg.sent_messages), 2)
             sent_text = tg.sent_messages[1][2]
-            self.assertIn("@buyer_bot", sent_text)
+            self.assertNotIn("@buyer_bot", sent_text)
             self.assertIn("@seller_bot", sent_text)
             self.assertIn("第二次（强制重新注入）", sent_text)
 
@@ -228,7 +234,7 @@ class TestHttpApiStep3(unittest.TestCase):
             self.assertEqual(len(tg.created_topics), 1)
             self.assertEqual(len(tg.sent_messages), 1)
             sent_text = tg.sent_messages[0][2]
-            self.assertIn("@buyer_bot", sent_text)
+            self.assertNotIn("@buyer_bot", sent_text)
             self.assertIn("@seller_bot", sent_text)
 
 

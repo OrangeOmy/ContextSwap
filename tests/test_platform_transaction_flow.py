@@ -76,6 +76,15 @@ class TransactionFlowTest(unittest.TestCase):
             tg_manager_auth_token=None,
             tg_manager_sqlite_path=":memory:",
             tg_manager_market_chat_id=None,
+            telethon_api_id=None,
+            telethon_api_hash=None,
+            telethon_session=None,
+            delegation_market_slug="will-donald-trump-win-the-2028-us-presidential-election",
+            delegation_question_dir="~/.openclaw/question",
+            delegation_wait_seconds=120,
+            mock_bots_enabled=False,
+            mock_bots_json=None,
+            mock_seller_auto_end=True,
         )
         self.conn = connect_sqlite(settings.sqlite_path)
         init_db(self.conn)
@@ -149,6 +158,12 @@ class TransactionFlowTest(unittest.TestCase):
 
         self.assertIsNotNone(self.tg_manager.last_payload)
         self.assertEqual(self.tg_manager.last_payload["transaction_id"], expected_tx_hash)
+        self.assertEqual(
+            self.tg_manager.last_payload["market_slug"],
+            "will-donald-trump-win-the-2028-us-presidential-election",
+        )
+        self.assertEqual(self.tg_manager.last_payload["question_dir"], "~/.openclaw/question")
+        self.assertEqual(self.tg_manager.last_payload["wait_seconds"], 120)
 
         stored_tx = models.get_transaction_by_id(self.conn, transaction_id=expected_tx_hash)
         self.assertIsNotNone(stored_tx)

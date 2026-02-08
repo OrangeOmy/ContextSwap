@@ -100,30 +100,45 @@ def _build_system_message(transaction_id: str, metadata: dict) -> str:
     prompt_text = str(prompt).strip() if prompt is not None else ""
     if prompt_text == "":
         prompt_text = "（无）"
+    market_slug = str(metadata.get("market_slug") or "").strip() or "will-donald-trump-win-the-2028-us-presidential-election"
+    question_dir = str(metadata.get("question_dir") or "").strip() or "~/.openclaw/question"
+    wait_seconds_raw = metadata.get("wait_seconds")
+    wait_seconds = 120
+    if isinstance(wait_seconds_raw, int) and wait_seconds_raw > 0:
+        wait_seconds = wait_seconds_raw
 
-    buyer_mention = f"@{buyer}" if buyer else ""
+    # 仅 @seller，避免 buyer bot 被系统注入消息误触发
     seller_mention = f"@{seller}" if seller else ""
-    mention_line = " ".join([x for x in [buyer_mention, seller_mention] if x])
 
     parts = [
-        # 提前 @ 提及，兼容 buyer/seller bot 开启隐私模式的场景
-        mention_line if mention_line else "（未提供参与方 bot 用户名，无法 @ 提及）",
+        # 提前 @seller 提及，兼容 seller bot 开启隐私模式的场景
+        seller_mention if seller_mention else "（未提供 seller bot 用户名，无法 @ 提及）",
         "",
         "交易会话已创建（Telegram Topic）",
         f"transaction_id: {transaction_id}",
     ]
     if buyer or seller:
-        parts.append(f"参与方: {buyer_mention or buyer or '未知'} / {seller_mention or seller or '未知'}")
+        # buyer 仅展示用户名本体，不使用 @ 提及，避免触发 buyer bot 回复
+        parts.append(f"参与方: {buyer or '未知'} / {seller_mention or seller or '未知'}")
     parts.extend(
         [
             "",
             "初始指令：",
             prompt_text,
             "",
+            "Demo 上下文：",
+            f"- market_slug: {market_slug}",
+            f"- 异步答案目录: {question_dir}",
+            f"- 主 bot 回收等待: {wait_seconds}s",
+            "",
             "规则：",
             "- 请在本 Topic 内完成本次交易对话",
             f"- 你可以分多条消息组织一段内容；当这段内容准备好被转发时，请在最后一条末尾追加：{RELAY_FLUSH_MARKER}",
             f"- 服务端仅在检测到 {RELAY_FLUSH_MARKER} 后，才会把该 bot 自上次转发后的所有内容一次性转发给对方",
+            f"- 子 topic bot 完成回答后，必须把完整回答保存为 md 到目录：{question_dir}",
+            f"- 文件名格式：{transaction_id}__<bot_username>__answer.md",
+            f"- 子 topic bot 在 Topic 回执中必须给出已写入文件名，并在末尾包含：{RELAY_FLUSH_MARKER}",
+            f"- 主 bot 在发起委托后等待 {wait_seconds}s，再扫描 {question_dir} 并读取需要的 md 文件回填上下文",
             f"- 当 seller 输出最终报告后，请附带结束标记：{SESSION_END_MARKER}",
             f"- seller 的最终报告最后一段请同时包含：{SESSION_END_MARKER} 与 {RELAY_FLUSH_MARKER}",
             "- 服务端检测到结束标记后，会先把 seller 最后一条消息转发给 buyer，再自动关闭本 Topic",

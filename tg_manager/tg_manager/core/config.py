@@ -17,6 +17,7 @@ from dotenv import load_dotenv
 
 DEFAULT_ENV_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".env"))
 LEGACY_ENV_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
+DEFAULT_DEMO_MARKET_SLUG = "will-donald-trump-win-the-2028-us-presidential-election"
 
 
 class ConfigError(ValueError):
@@ -68,6 +69,23 @@ def _读取整数环境变量(
     return value
 
 
+def _读取布尔环境变量(
+    environ: Mapping[str, str],
+    key: str,
+    *,
+    default: bool,
+) -> bool:
+    raw = _读取环境变量(environ, key)
+    if raw is None:
+        return default
+    lowered = raw.lower()
+    if lowered in {"1", "true", "yes", "on"}:
+        return True
+    if lowered in {"0", "false", "no", "off"}:
+        return False
+    raise ConfigError(f"环境变量 {key} 必须是布尔值（true/false），当前值：{raw!r}")
+
+
 @dataclass(frozen=True)
 class Settings:
     """项目配置。
@@ -99,6 +117,12 @@ class Settings:
     session_timeout_minutes: int
     sqlite_path: str
     log_level: str
+    delegation_market_slug: str
+    delegation_question_dir: str
+    delegation_wait_seconds: int
+    mock_bots_enabled: bool
+    mock_bots_json: str | None
+    mock_seller_auto_end: bool
 
 
 def load_settings(
@@ -157,6 +181,12 @@ def load_settings(
         or "./db/contextswap.sqlite3"
     )
     log_level = _读取环境变量(env, "LOG_LEVEL") or "INFO"
+    delegation_market_slug = _读取环境变量(env, "OPENCLAW_MARKET_SLUG") or DEFAULT_DEMO_MARKET_SLUG
+    delegation_question_dir = _读取环境变量(env, "OPENCLAW_QUESTION_DIR") or "~/.openclaw/question"
+    delegation_wait_seconds = _读取整数环境变量(env, "OPENCLAW_WAIT_SECONDS", default=120, min_value=1)
+    mock_bots_enabled = _读取布尔环境变量(env, "MOCK_BOTS_ENABLED", default=False)
+    mock_bots_json = _读取环境变量(env, "MOCK_BOTS_JSON")
+    mock_seller_auto_end = _读取布尔环境变量(env, "MOCK_SELLER_AUTO_END", default=True)
 
     return Settings(
         api_auth_token=api_auth_token,
@@ -167,4 +197,10 @@ def load_settings(
         session_timeout_minutes=session_timeout_minutes,
         sqlite_path=sqlite_path,
         log_level=log_level,
+        delegation_market_slug=delegation_market_slug,
+        delegation_question_dir=delegation_question_dir,
+        delegation_wait_seconds=delegation_wait_seconds,
+        mock_bots_enabled=mock_bots_enabled,
+        mock_bots_json=mock_bots_json,
+        mock_seller_auto_end=mock_seller_auto_end,
     )

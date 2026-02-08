@@ -14,6 +14,11 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(settings.api_auth_token, "secret")
         self.assertEqual(settings.session_timeout_minutes, 10)
         self.assertEqual(settings.sqlite_path, "./db/contextswap.sqlite3")
+        self.assertEqual(settings.delegation_market_slug, "will-donald-trump-win-the-2028-us-presidential-election")
+        self.assertEqual(settings.delegation_question_dir, "~/.openclaw/question")
+        self.assertEqual(settings.delegation_wait_seconds, 120)
+        self.assertFalse(settings.mock_bots_enabled)
+        self.assertTrue(settings.mock_seller_auto_end)
 
     def test_load_settings_missing_required(self) -> None:
         with self.assertRaises(ConfigError) as ctx:

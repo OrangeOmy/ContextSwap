@@ -28,6 +28,9 @@ class CreateSessionRequest(BaseModel):
     buyer_bot_username: str = Field(..., min_length=1, description="买方 bot 用户名")
     seller_bot_username: str = Field(..., min_length=1, description="卖方 bot 用户名")
     initial_prompt: str | None = Field(default=None, description="可选：注入的初始指令")
+    market_slug: str | None = Field(default=None, description="可选：polymarket market slug")
+    question_dir: str | None = Field(default=None, description="可选：子 bot 写入 md 的目录")
+    wait_seconds: int | None = Field(default=None, ge=1, description="可选：主 bot 回收 md 前等待秒数")
     force_reinject: bool = Field(default=False, description="可选：强制重新注入系统消息（用于排障/修复旧会话）")
 
 
@@ -106,6 +109,9 @@ async def create_session(request: Request, body: CreateSessionRequest) -> dict[s
         "buyer_bot_username": buyer,
         "seller_bot_username": seller,
         "initial_prompt": initial_prompt,
+        "market_slug": (body.market_slug or settings.delegation_market_slug).strip(),
+        "question_dir": (body.question_dir or settings.delegation_question_dir).strip(),
+        "wait_seconds": int(body.wait_seconds or settings.delegation_wait_seconds),
         "telegram_stub": False,
     }
 

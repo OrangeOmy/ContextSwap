@@ -16,6 +16,7 @@ from contextswap.platform.db.engine import connect_sqlite, init_db
 from contextswap.platform.services.inprocess_tg_manager_client import InProcessTgManagerClient
 from contextswap.platform.services.session_client import SessionManagerClient
 from contextswap.platform.services.tg_manager_client import TgManagerClient
+from tg_manager.services.mock_bot_relay import MockBotRelay, parse_mock_bots
 from tg_manager.services.telethon_relay import TelethonRelay
 from tg_manager.services.telethon_service import TelethonService
 
@@ -38,6 +39,7 @@ def create_app(
         app.state.settings = settings
 
         relay: TelethonRelay | None = None
+        mock_relay: MockBotRelay | None = None
         telethon_client: TelegramClient | None = None
 
         facilitators: dict[str, object] | None = None
@@ -68,19 +70,10 @@ def create_app(
             elif settings.tg_manager_mode == "inprocess":
                 telegram_service = tg_manager_telegram_service
                 if telegram_service is None:
-                    telethon_api_id_raw = ""
-                    telethon_api_hash = ""
-                    telethon_session = ""
-                    import os
-
-                    telethon_api_id_raw = os.getenv("TELETHON_API_ID", "").strip()
-                    telethon_api_hash = os.getenv("TELETHON_API_HASH", "").strip()
-                    telethon_session = os.getenv("TELETHON_SESSION", "").strip()
-                    if telethon_api_id_raw and telethon_api_hash and telethon_session:
-                        try:
-                            telethon_api_id = int(telethon_api_id_raw)
-                        except ValueError as exc:
-                            raise RuntimeError("TELETHON_API_ID must be an integer") from exc
+                    telethon_api_id = settings.telethon_api_id
+                    telethon_api_hash = settings.telethon_api_hash
+                    telethon_session = settings.telethon_session
+                    if telethon_api_id is not None and telethon_api_hash and telethon_session:
                         telethon_client = TelegramClient(
                             StringSession(telethon_session),
                             telethon_api_id,
@@ -104,6 +97,20 @@ def create_app(
                         market_chat_id=settings.tg_manager_market_chat_id,
                     )
                     await relay.start()
+                    mock_bots = parse_mock_bots(
+                        enabled=settings.mock_bots_enabled,
+                        raw_json=settings.mock_bots_json,
+                        market_slug=settings.delegation_market_slug,
+                    )
+                    mock_relay = MockBotRelay(
+                        client=telethon_client,
+                        conn=tg_manager_client.conn,  # type: ignore[attr-defined]
+                        market_chat_id=settings.tg_manager_market_chat_id,
+                        relay=relay,
+                        responses=mock_bots,
+                        seller_auto_end=settings.mock_seller_auto_end,
+                    )
+                    await mock_relay.start()
 
         app.state.facilitator = facilitator_client
         app.state.facilitators = facilitators or {"conflux": facilitator_client}
@@ -112,6 +119,8 @@ def create_app(
         try:
             yield
         finally:
+            if mock_relay is not None:
+                await mock_relay.stop()
             if relay is not None:
                 await relay.stop()
             if telethon_client is not None:

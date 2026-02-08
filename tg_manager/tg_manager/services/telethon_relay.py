@@ -150,6 +150,11 @@ class TelethonRelay:
 
         await self._maybe_relay(session, sender_username=sender_username, source_text=text)
 
+    async def relay_as_username(self, session: Session, *, sender_username: str, source_text: str) -> None:
+        """Allow mock adapters to inject deterministic bot replies into relay flow."""
+
+        await self._maybe_relay(session, sender_username=sender_username, source_text=source_text)
+
     async def _maybe_relay(self, session: Session, *, sender_username: str, source_text: str) -> None:
         metadata = _safe_load_metadata(session.metadata_json)
         buyer = _normalize_username(str(metadata.get("buyer_bot_username") or ""))

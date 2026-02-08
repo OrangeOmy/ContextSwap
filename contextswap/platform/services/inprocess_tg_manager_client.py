@@ -95,6 +95,9 @@ class InProcessTgManagerClient:
         buyer_bot_username: str,
         seller_bot_username: str,
         initial_prompt: str,
+        market_slug: str | None = None,
+        question_dir: str | None = None,
+        wait_seconds: int | None = None,
         force_reinject: bool = False,
     ) -> dict:
         if self.telegram is None:
@@ -115,6 +118,9 @@ class InProcessTgManagerClient:
             "buyer_bot_username": buyer,
             "seller_bot_username": seller,
             "initial_prompt": prompt,
+            "market_slug": (market_slug or "").strip() or None,
+            "question_dir": (question_dir or "").strip() or None,
+            "wait_seconds": int(wait_seconds) if isinstance(wait_seconds, int) and wait_seconds > 0 else None,
             "telegram_stub": False,
         }
 

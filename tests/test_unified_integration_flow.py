@@ -101,6 +101,15 @@ class UnifiedIntegrationFlowTest(unittest.TestCase):
             tg_manager_auth_token="ops-token",
             tg_manager_sqlite_path=":memory:",
             tg_manager_market_chat_id="-1001234567890",
+            telethon_api_id=None,
+            telethon_api_hash=None,
+            telethon_session=None,
+            delegation_market_slug="will-donald-trump-win-the-2028-us-presidential-election",
+            delegation_question_dir="~/.openclaw/question",
+            delegation_wait_seconds=120,
+            mock_bots_enabled=False,
+            mock_bots_json=None,
+            mock_seller_auto_end=True,
         )
 
     def test_unified_payment_and_session_happy_path(self) -> None:
