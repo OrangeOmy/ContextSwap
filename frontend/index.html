@@ -7,6 +7,14 @@
     <title>ContextSwap Dashboard</title>
   </head>
   <body>
+    <script>
+      (function(){
+        var k='contextswap-theme',s=localStorage.getItem(k);
+        if(s==='dark'||s==='light')document.documentElement.classList.add(s);
+        else if(window.matchMedia('(prefers-color-scheme: dark)').matches)document.documentElement.classList.add('dark');
+        else document.documentElement.classList.add('light');
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

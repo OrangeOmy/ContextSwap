@@ -7,9 +7,6 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
   Legend,
   AreaChart,
   Area,
@@ -19,10 +16,10 @@ import SellerCard from '../components/SellerCard';
 import StatsCard from '../components/StatsCard';
 
 const STATUS_COLORS: Record<string, string> = {
-  paid: '#10a37f',
-  session_created: '#10a37f',
-  pending: '#f59e0b',
-  failed: '#ef4444',
+  paid: '#4b5563',
+  session_created: '#6b7280',
+  pending: '#d97706',
+  failed: '#dc2626',
 };
 
 function Dashboard() {
@@ -117,16 +114,16 @@ function Dashboard() {
   return (
     <div className="max-w-6xl mx-auto px-6 py-8">
       <div className="mb-8">
-        <h1 className="text-2xl font-semibold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500 mt-1">
-          P2P context trading · All data from FastAPI
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Dashboard</h1>
+        <p className="text-gray-500 dark:text-gray-400 mt-1">
+          P2P context trading
         </p>
       </div>
 
       {error && (
-        <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+        <div className="mb-6 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm">
           API 错误: {error}. 请确认后端已启动:{' '}
-          <code className="bg-red-100 px-1 rounded">
+          <code className="bg-red-100 dark:bg-red-900/40 px-1 rounded">
             uv run python -m contextswap.platform.main
           </code>
         </div>
@@ -148,43 +145,48 @@ function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-          <h3 className="text-sm font-medium text-gray-700 mb-4">
+        <div className="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-[#171717] p-5 shadow-sm">
+          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
             交易状态分布
           </h3>
           {statusChartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie
-                  data={statusChartData}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={80}
-                  label={({ name, value }) => `${name}: ${value}`}
-                >
-                  {statusChartData.map((_, i) => (
-                    <Cell
-                      key={i}
-                      fill={
-                        STATUS_COLORS[statusChartData[i].name] ?? '#94a3b8'
-                      }
-                    />
-                  ))}
-                </Pie>
+              <BarChart
+                data={statusChartData}
+                layout="vertical"
+                margin={{ top: 4, right: 16, left: 60, bottom: 4 }}
+              >
+                <XAxis type="number" tick={{ fontSize: 11 }} />
+                <YAxis type="category" dataKey="name" width={52} tick={{ fontSize: 11 }} />
                 <Tooltip />
                 <Legend />
-              </PieChart>
+                <Bar
+                  dataKey="value"
+                  nameKey="name"
+                  radius={[0, 4, 4, 0]}
+                  label={{ position: 'right', fontSize: 11 }}
+                >
+                  {statusChartData.map((entry, i) => (
+                    <rect
+                      key={entry.name}
+                      x={0}
+                      y={0}
+                      width="100%"
+                      height="100%"
+                      fill={STATUS_COLORS[entry.name] ?? '#94a3b8'}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
           ) : (
-            <p className="text-gray-400 text-sm py-8 text-center">
+            <p className="text-gray-400 dark:text-gray-500 text-sm py-8 text-center">
               暂无交易数据
             </p>
           )}
         </div>
-        <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-          <h3 className="text-sm font-medium text-gray-700 mb-4">
+        <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 shadow-sm">
+          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
             每日交易量 (CFX)
           </h3>
           {volumeChartData.length > 0 ? (
@@ -192,8 +194,8 @@ function Dashboard() {
               <AreaChart data={volumeChartData}>
                 <defs>
                   <linearGradient id="vol" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#10a37f" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="#10a37f" stopOpacity={0} />
+                    <stop offset="0%" stopColor="#4b5563" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="#4b5563" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <XAxis dataKey="date" tick={{ fontSize: 11 }} />
@@ -202,21 +204,21 @@ function Dashboard() {
                 <Area
                   type="monotone"
                   dataKey="volume"
-                  stroke="#10a37f"
+                  stroke="#4b5563"
                   fill="url(#vol)"
                 />
               </AreaChart>
             </ResponsiveContainer>
           ) : (
-            <p className="text-gray-400 text-sm py-8 text-center">
+            <p className="text-gray-400 dark:text-gray-500 text-sm py-8 text-center">
               暂无交易数据
             </p>
           )}
         </div>
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm mb-8">
-        <h3 className="text-sm font-medium text-gray-700 mb-4">
+      <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 shadow-sm mb-8">
+        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
           卖家价格分布 (CFX)
         </h3>
         {priceChartData.some((d) => d.count > 0) ? (
@@ -225,11 +227,11 @@ function Dashboard() {
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} />
               <Tooltip />
-              <Bar dataKey="count" fill="#10a37f" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="count" fill="#4b5563" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         ) : (
-          <p className="text-gray-400 text-sm py-8 text-center">
+          <p className="text-gray-400 dark:text-gray-500 text-sm py-8 text-center">
             暂无卖家数据
           </p>
         )}
@@ -237,31 +239,31 @@ function Dashboard() {
 
       <form onSubmit={handleSearch} className="flex gap-3 mb-6">
         <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
           <input
             type="text"
             value={searchKeyword}
             onChange={(e) => setSearchKeyword(e.target.value)}
             placeholder="搜索卖家关键词..."
-            className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-gray-900 placeholder-gray-400"
+            className="w-full pl-10 pr-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400/30 focus:border-gray-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
           />
         </div>
         <button
           type="submit"
           disabled={loading}
-          className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+          className="px-5 py-2.5 bg-gray-800 dark:bg-gray-200 hover:bg-gray-900 dark:hover:bg-white text-white dark:text-gray-900 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
         >
           {loading ? '搜索中...' : '搜索'}
         </button>
       </form>
 
-      <h2 className="text-lg font-medium text-gray-900 mb-4">卖家列表</h2>
+      <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">卖家列表</h2>
       {loading ? (
-        <div className="flex justify-center py-16 text-gray-500">
+        <div className="flex justify-center py-16 text-gray-500 dark:text-gray-400">
           <span className="animate-pulse">加载中...</span>
         </div>
       ) : sellers.length === 0 ? (
-        <div className="py-16 text-center rounded-lg border border-gray-200 bg-gray-50 text-gray-500">
+        <div className="py-16 text-center rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-gray-500 dark:text-gray-400">
           未找到卖家
         </div>
       ) : (
@@ -272,8 +274,8 @@ function Dashboard() {
         </div>
       )}
 
-      <footer className="mt-12 pt-6 border-t border-gray-200 text-sm text-gray-400">
-        Powered by x402 · FastAPI backend
+      <footer className="mt-12 pt-6 border-t border-gray-200 dark:border-gray-700 text-sm text-gray-400 dark:text-gray-500">
+        Powered by x402
       </footer>
     </div>
   );

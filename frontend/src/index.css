@@ -4,12 +4,18 @@
 
 @layer base {
   * {
-    @apply border-gray-200;
+    @apply border-gray-200 dark:border-gray-600;
   }
   body {
     @apply bg-white text-gray-900 antialiased;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
       'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  }
+  html.dark body {
+    @apply bg-[#0d0d0d] text-gray-100;
+  }
+  html.dark {
+    color-scheme: dark;
   }
 }
 

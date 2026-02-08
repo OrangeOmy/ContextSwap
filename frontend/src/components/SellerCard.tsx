@@ -22,13 +22,13 @@ function SellerCard({ seller }: SellerCardProps) {
       : [];
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm hover:border-gray-300 transition-colors">
+    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 shadow-sm hover:border-gray-300 dark:hover:border-gray-600 transition-colors">
       <div className="flex items-center justify-between mb-3">
         <span
           className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
             seller.status === 'active'
-              ? 'bg-green-50 text-green-700'
-              : 'bg-gray-100 text-gray-600'
+              ? 'bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200'
+              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
           }`}
         >
           {seller.status === 'active' ? '活跃' : '非活跃'}
@@ -36,11 +36,11 @@ function SellerCard({ seller }: SellerCardProps) {
       </div>
       <div className="flex items-center gap-2 mb-2">
         <Wallet className="w-4 h-4 text-gray-400" />
-        <span className="text-sm font-mono text-gray-600">
+        <span className="text-sm font-mono text-gray-600 dark:text-gray-400">
           {formatAddress(seller.evm_address)}
         </span>
       </div>
-      <p className="text-sm text-gray-700 mb-3 line-clamp-2">
+      <p className="text-sm text-gray-700 dark:text-gray-300 mb-3 line-clamp-2">
         {seller.description || '无描述'}
       </p>
       {keywords.length > 0 && (
@@ -87,7 +87,7 @@ function SellerCard({ seller }: SellerCardProps) {
             </div>
           )}
       </div>
-      <div className="flex items-center gap-1 mt-3 text-xs text-gray-400">
+      <div className="flex items-center gap-1 mt-3 text-xs text-gray-400 dark:text-gray-500">
         <Clock className="w-3 h-3" />
         创建于 {new Date(seller.created_at).toLocaleDateString('zh-CN')}
       </div>

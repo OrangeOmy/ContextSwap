@@ -16,14 +16,14 @@ const STATUS_CONFIG: Record<
   string,
   { label: string; color: string; icon: typeof CheckCircle }
 > = {
-  paid: { label: '已支付', color: 'text-green-700 bg-green-50', icon: CheckCircle },
+  paid: { label: '已支付', color: 'text-gray-800 dark:text-gray-200 bg-gray-200 dark:bg-gray-600', icon: CheckCircle },
   session_created: {
     label: '会话已创建',
-    color: 'text-green-700 bg-green-50',
+    color: 'text-gray-800 dark:text-gray-200 bg-gray-200 dark:bg-gray-600',
     icon: CheckCircle,
   },
-  pending: { label: '待处理', color: 'text-amber-700 bg-amber-50', icon: Clock },
-  failed: { label: '失败', color: 'text-red-700 bg-red-50', icon: XCircle },
+  pending: { label: '待处理', color: 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30', icon: Clock },
+  failed: { label: '失败', color: 'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/30', icon: XCircle },
 };
 
 function TransactionRow({ tx }: { tx: Transaction }) {
@@ -39,11 +39,11 @@ function TransactionRow({ tx }: { tx: Transaction }) {
       : tx.transaction_id;
 
   return (
-    <tr className="border-b border-gray-100 hover:bg-gray-50/80">
+    <tr className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50/80 dark:hover:bg-gray-800/50">
       <td className="py-3 px-4">
         <Link
           to={`/transactions/${tx.transaction_id}`}
-          className="font-mono text-sm text-primary hover:underline"
+          className="font-mono text-sm text-gray-800 dark:text-gray-200 hover:underline"
         >
           {shortId}
         </Link>
@@ -71,7 +71,7 @@ function TransactionRow({ tx }: { tx: Transaction }) {
       <td className="py-3 px-4">
         <Link
           to={`/transactions/${tx.transaction_id}`}
-          className="text-primary text-sm font-medium hover:underline inline-flex items-center gap-1"
+          className="text-gray-800 dark:text-gray-200 text-sm font-medium hover:underline inline-flex items-center gap-1"
         >
           详情
           <ArrowRight className="w-4 h-4" />
@@ -102,9 +102,9 @@ export default function Transactions() {
   return (
     <div className="max-w-6xl mx-auto px-6 py-8">
       <div className="mb-8">
-        <h1 className="text-2xl font-semibold text-gray-900">Transactions</h1>
-        <p className="text-gray-500 mt-1">
-          交易列表与详情 · 数据来自 FastAPI
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Transactions</h1>
+        <p className="text-gray-500 dark:text-gray-400 mt-1">
+          交易列表与详情
         </p>
       </div>
 
@@ -119,14 +119,14 @@ export default function Transactions() {
           <span className="animate-pulse">加载中...</span>
         </div>
       ) : transactions.length === 0 ? (
-        <div className="py-16 text-center rounded-lg border border-gray-200 bg-gray-50 text-gray-500">
+        <div className="py-16 text-center rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-gray-500 dark:text-gray-400">
           暂无交易记录
         </div>
       ) : (
-        <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
+        <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
           <table className="w-full">
             <thead>
-              <tr className="bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <tr className="bg-gray-50 dark:bg-gray-700/50 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 <th className="py-3 px-4">交易 ID</th>
                 <th className="py-3 px-4">卖家 ID</th>
                 <th className="py-3 px-4">买家地址</th>
@@ -145,8 +145,8 @@ export default function Transactions() {
         </div>
       )}
 
-      <footer className="mt-12 pt-6 border-t border-gray-200 text-sm text-gray-400">
-        Powered by x402 · FastAPI backend
+      <footer className="mt-12 pt-6 border-t border-gray-200 dark:border-gray-700 text-sm text-gray-400 dark:text-gray-500">
+        Powered by x402
       </footer>
     </div>
   );
@@ -185,56 +185,57 @@ export function TransactionDetail() {
 
   const config = STATUS_CONFIG[tx.status] ?? {
     label: tx.status,
-    color: 'bg-gray-100 text-gray-700',
+    color: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300',
     icon: Clock,
   };
+  const Icon = config.icon;
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-8">
       <Link
         to="/transactions"
-        className="text-sm text-primary hover:underline mb-6 inline-block"
+        className="text-sm text-gray-800 dark:text-gray-200 hover:underline mb-6 inline-block"
       >
         ← 返回交易列表
       </Link>
-      <h1 className="text-xl font-semibold text-gray-900 mb-2">交易详情</h1>
-      <p className="font-mono text-sm text-gray-500 break-all mb-8">
+      <h1 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">交易详情</h1>
+      <p className="font-mono text-sm text-gray-500 dark:text-gray-400 break-all mb-8">
         {tx.transaction_id}
       </p>
 
       <div className="space-y-6">
-        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 shadow-sm">
           <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-4">
             交易流程
           </h3>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50">
-              <User className="w-5 h-5 text-gray-400" />
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700">
+              <User className="w-5 h-5 text-gray-400 dark:text-gray-500" />
               <div>
-                <p className="text-xs text-gray-500">买家</p>
-                <p className="font-mono text-sm text-gray-900 break-all">
+                <p className="text-xs text-gray-500 dark:text-gray-400">买家</p>
+                <p className="font-mono text-sm text-gray-900 dark:text-gray-100 break-all">
                   {tx.buyer_address}
                 </p>
               </div>
             </div>
             <ArrowRight className="w-5 h-5 text-gray-300 shrink-0 hidden sm:block" />
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
-              <Wallet className="w-5 h-5 text-primary" />
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600">
+              <Wallet className="w-5 h-5 text-gray-600 dark:text-gray-400" />
               <div>
-                <p className="text-xs text-gray-500">支付</p>
-                <p className="font-semibold text-gray-900">
+                <p className="text-xs text-gray-500 dark:text-gray-400">支付</p>
+                <p className="font-semibold text-gray-900 dark:text-white">
                   {(tx.price_wei / 1e18).toFixed(6)} CFX
                 </p>
               </div>
             </div>
             <ArrowRight className="w-5 h-5 text-gray-300 shrink-0 hidden sm:block" />
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50">
-              <MessageSquare className="w-5 h-5 text-gray-400" />
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700">
+              <MessageSquare className="w-5 h-5 text-gray-400 dark:text-gray-500" />
               <div>
-                <p className="text-xs text-gray-500">卖家 / 会话</p>
-                <p className="text-sm text-gray-900">{tx.seller_id}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">卖家 / 会话</p>
+                <p className="text-sm text-gray-900 dark:text-gray-100">{tx.seller_id}</p>
                 {tx.chat_id && (
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
                     Chat: {tx.chat_id}
                     {tx.message_thread_id != null &&
                       ` · Thread: ${tx.message_thread_id}`}
@@ -245,40 +246,40 @@ export function TransactionDetail() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-          <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-3">
+        <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 shadow-sm">
+          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
             状态
           </h3>
           <span
             className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${config.color}`}
           >
-            <config.icon className="w-4 h-4" />
+            <Icon className="w-4 h-4" />
             {config.label}
           </span>
         </div>
 
         {tx.tx_hash && (
-          <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 shadow-sm">
             <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
               <Hash className="w-4 h-4" />
               链上交易哈希
             </h3>
-            <p className="font-mono text-sm text-gray-700 break-all">
+            <p className="font-mono text-sm text-gray-700 dark:text-gray-300 break-all">
               {tx.tx_hash}
             </p>
           </div>
         )}
 
         {tx.metadata?.initial_prompt && (
-          <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 shadow-sm">
             <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">
               初始提示
             </h3>
-            <p className="text-sm text-gray-700">{tx.metadata.initial_prompt}</p>
+            <p className="text-sm text-gray-700 dark:text-gray-300">{tx.metadata.initial_prompt}</p>
           </div>
         )}
 
-        <div className="text-sm text-gray-500">
+        <div className="text-sm text-gray-500 dark:text-gray-400">
           创建时间: {new Date(tx.created_at).toLocaleString('zh-CN')} · 更新:{' '}
           {new Date(tx.updated_at).toLocaleString('zh-CN')}
         </div>

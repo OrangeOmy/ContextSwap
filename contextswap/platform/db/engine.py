@@ -24,59 +24,66 @@ def connect_sqlite(sqlite_path: str) -> sqlite3.Connection:
 
 
 def init_db(conn: sqlite3.Connection) -> None:
-    conn.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS sellers (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          seller_id TEXT NOT NULL UNIQUE,
-          evm_address TEXT NOT NULL,
-          price_wei INTEGER NOT NULL,
-          price_conflux_wei INTEGER,
-          price_tron_sun INTEGER,
-          description TEXT NOT NULL,
-          keywords TEXT NOT NULL,
-          status TEXT NOT NULL,
-          created_at TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
+    try:
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS sellers (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              seller_id TEXT NOT NULL UNIQUE,
+              evm_address TEXT NOT NULL,
+              price_wei INTEGER NOT NULL,
+              price_conflux_wei INTEGER,
+              price_tron_sun INTEGER,
+              description TEXT NOT NULL,
+              keywords TEXT NOT NULL,
+              status TEXT NOT NULL,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            );
 
-        CREATE INDEX IF NOT EXISTS idx_sellers_status ON sellers(status);
-        CREATE INDEX IF NOT EXISTS idx_sellers_keywords ON sellers(keywords);
+            CREATE INDEX IF NOT EXISTS idx_sellers_status ON sellers(status);
+            CREATE INDEX IF NOT EXISTS idx_sellers_keywords ON sellers(keywords);
 
-        CREATE TABLE IF NOT EXISTS transactions (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          transaction_id TEXT NOT NULL UNIQUE,
-          seller_id TEXT NOT NULL,
-          buyer_address TEXT NOT NULL,
-          price_wei INTEGER NOT NULL,
-          status TEXT NOT NULL,
-          payment_payload_json TEXT NOT NULL,
-          requirements_json TEXT NOT NULL,
-          tx_hash TEXT,
-          chat_id TEXT,
-          message_thread_id INTEGER,
-          metadata_json TEXT NOT NULL,
-          error_reason TEXT,
-          created_at TEXT NOT NULL,
-          updated_at TEXT NOT NULL,
-          FOREIGN KEY (seller_id) REFERENCES sellers(seller_id)
-        );
+            CREATE TABLE IF NOT EXISTS transactions (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              transaction_id TEXT NOT NULL UNIQUE,
+              seller_id TEXT NOT NULL,
+              buyer_address TEXT NOT NULL,
+              price_wei INTEGER NOT NULL,
+              status TEXT NOT NULL,
+              payment_payload_json TEXT NOT NULL,
+              requirements_json TEXT NOT NULL,
+              tx_hash TEXT,
+              chat_id TEXT,
+              message_thread_id INTEGER,
+              metadata_json TEXT NOT NULL,
+              error_reason TEXT,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              FOREIGN KEY (seller_id) REFERENCES sellers(seller_id)
+            );
 
-        CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions(status);
-        CREATE INDEX IF NOT EXISTS idx_transactions_seller_id ON transactions(seller_id);
-        """
-    )
+            CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions(status);
+            CREATE INDEX IF NOT EXISTS idx_transactions_seller_id ON transactions(seller_id);
+            """
+        )
 
-    _ensure_column(conn, "sellers", "price_conflux_wei", "INTEGER")
-    _ensure_column(conn, "sellers", "price_tron_sun", "INTEGER")
-    conn.execute(
-        """
-        UPDATE sellers
-        SET price_conflux_wei = price_wei
-        WHERE price_conflux_wei IS NULL
-        """
-    )
-    conn.commit()
+        _ensure_column(conn, "sellers", "price_conflux_wei", "INTEGER")
+        _ensure_column(conn, "sellers", "price_tron_sun", "INTEGER")
+        conn.execute(
+            """
+            UPDATE sellers
+            SET price_conflux_wei = price_wei
+            WHERE price_conflux_wei IS NULL
+            """
+        )
+        conn.commit()
+    except sqlite3.OperationalError as e:
+        if "readonly" in str(e).lower():
+            # 只读数据库（如复制的文件）：跳过建表/迁移，仅做只读查询
+            pass
+        else:
+            raise
 
 
 def _ensure_column(conn: sqlite3.Connection, table: str, name: str, ddl: str) -> None:
