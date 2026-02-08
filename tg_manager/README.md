@@ -13,7 +13,7 @@ You need to prepare the following on Telegram:
 5. Manually add buyer bot and seller bot to the supergroup (one-time operation). Note: a Topic is just a thread view; members see the same permissions.
 6. If buyer/seller bots do not respond in the group, check **Privacy Mode** first:
    - Privacy Mode ON: bots typically only receive mentions or commands.
-   - Recommended: turn Privacy Mode OFF in BotFather, or ensure injected messages include `@buyer_bot @seller_bot`.
+   - Recommended: turn Privacy Mode OFF in BotFather, or ensure injected messages include `@seller_bot`.
 
 Important limitation (must understand):
 - Telegram Bot API does not deliver messages sent by bots to other bots. Therefore this project uses Telethon (user account) to speak/listen in the Topic and relay messages between buyer/seller bots.
@@ -93,7 +93,7 @@ curl -sS -X POST "http://127.0.0.1:8000/v1/session/create" \
 Notes:
 - `transaction_id` should be the x402 transaction hash (session ID).
 - `buyer_bot_username` / `seller_bot_username` can be with or without `@`; the service normalizes and stores without `@`.
-- The injected system message always includes `@buyer_bot @seller_bot` to trigger updates under Privacy Mode.
+- The injected system message includes only `@seller_bot` to trigger seller updates under Privacy Mode.
 - If the same `transaction_id` already exists, `create` is idempotent: no new topic/injection by default. For troubleshooting, pass `"force_reinject": true`.
 - After startup, the service relays bot messages inside the Topic. Only messages containing `[READY_TO_FORWARD]` are forwarded.
 - If the seller’s forwarded content contains `[END_OF_REPORT]`, the service closes the Topic and marks the session `ended`.
@@ -180,7 +180,7 @@ uv run python -m unittest discover -s tests -p "test_*.py" -q
 5. 将 buyer bot、seller bot **人工加入**该超级群（一次性操作）。注意：Telegram 的 Topic 不支持“单独拉人进某个 Topic”，Topic 只是一种线程视图，群成员看到的权限相同。
 6. 若 buyer/seller bot 在群内不响应消息，优先检查它们的 **Privacy Mode（隐私模式）**：
    - 如果开启隐私模式：它们通常只会收到「@提及」或「命令」等消息
-   - 推荐在 BotFather 里关闭隐私模式（Group Privacy / Privacy Mode），或确保系统注入消息里包含 `@buyer_bot @seller_bot`
+   - 推荐在 BotFather 里关闭隐私模式（Group Privacy / Privacy Mode），或确保系统注入消息里包含 `@seller_bot`
 
 重要限制（必须了解）：
 - Telegram Bot API 不会把“由 bot 发送的消息”投递给其他 bot，因此本项目使用 Telethon（用户账号）在 Topic 内发言/监听，并在 buyer/seller bot 之间做消息中继。
@@ -268,7 +268,7 @@ curl -sS -X POST "http://127.0.0.1:8000/v1/session/create" \
 说明：
 - `transaction_id` 建议使用 x402 成功交易的 hash（作为会话 ID）。
 - `buyer_bot_username` / `seller_bot_username` 支持传 `seller_bot` 或 `@seller_bot`；服务会统一规范化为不带 `@` 的形式落库。
-- 服务在系统注入消息里会自动加上 `@buyer_bot @seller_bot`，用于在隐私模式下触发它们收到更新。
+- 服务在系统注入消息里仅自动加上 `@seller_bot`，用于在隐私模式下触发 seller bot 收到更新，避免 buyer bot 被误触发。
 - 若你之前用同一个 `transaction_id` 创建过会话：再次 `create` 默认是幂等的，不会重复发送注入消息；排障时可以在请求里加 `"force_reinject": true` 强制再发一次（用于修复旧会话没有 @ 的情况）。
 - 服务启动后会开启“Topic 内 bot 消息中继”：buyer/seller bot 的消息只有在包含转发触发标记 `[READY_TO_FORWARD]` 时，才会被服务端批量转发给对方（转发内容为该 bot 自上次转发后累积的全部文本）。
 - 当 seller 的已转发文本中包含结束标记 `[END_OF_REPORT]` 时，服务端会在最后一次转发后立即关闭 Topic，并把会话置为 `ended`（`end_reason=end_marker`）。
