@@ -224,6 +224,26 @@ export default function Cover() {
               <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
             </Link>
           </div>
+          <div className="mt-5 flex items-center justify-center">
+            <a
+              href="https://github.com/OrangeOmy/ContextSwap/tree/main/skills/openclaw-bot-delegation"
+              target="_blank"
+              rel="noreferrer"
+              className={`w-full max-w-xl rounded-xl border px-4 py-3 text-left transition-colors ${
+                isDark
+                  ? 'border-cyan-300/25 bg-cyan-500/10 hover:border-cyan-200/45 hover:bg-cyan-500/15'
+                  : 'border-cyan-500/35 bg-cyan-50 hover:border-cyan-500/55 hover:bg-cyan-100'
+              }`}
+            >
+              <span className="flex items-center justify-between gap-2">
+                <span className="inline-flex items-center gap-2 text-sm font-medium">
+                  <Github className="w-4 h-4" />
+                  Buyer Skill: openclaw-bot-delegation
+                </span>
+                <span className="text-xs opacity-80">Open on GitHub</span>
+              </span>
+            </a>
+          </div>
         </section>
 
         {error && (
