@@ -21,3 +21,5 @@ env/.env
 
 uv.lock
 *.sqlite3*
+
+*.log
