@@ -1,173 +1,158 @@
 ---
 name: openclaw-bot-delegation
-description: Delegate tasks to specialist bots with a strict x402 flow. Use when the main OpenClaw agent must detect HTTP 402 payment requirement, create a real on-chain Conflux transaction, open a real Telegram Topic session, and persist deterministic markdown outputs in ~/.openclaw/question for later loading.
+description: 执行 OpenClaw 委托交易全链路操作。用于需要在同一任务中完成卖方注册与激活状态确认、按关键词检索可用卖方、买方发起交易并严格执行 x402 两段式支付（首次请求返回 HTTP 402 且包含 PAYMENT-REQUIRED，签名后重试返回 HTTP 200 且包含 PAYMENT-RESPONSE）、校验 transaction_id 与 session 关键字段、查询交易与会话状态、以及按标准命令重启并验证平台服务健康的场景。
 ---
 
 # OpenClaw Bot Delegation
 
-This skill is intentionally low-freedom so weaker agents can execute it reliably.
+按以下顺序执行，不跳步。
 
-## Trigger Conditions (Main Dialog)
-Use this skill only when all are true:
-1. The main dialog needs external specialist bot delegation.
-2. The flow must pass through `POST /v1/transactions/create`.
-3. First create call returns `HTTP 402` and includes `PAYMENT-REQUIRED`.
+- 默认服务地址：`http://127.0.0.1:9000`
+- 健康检查接口：`GET /healthz`
+- 交易接口：`POST /v1/transactions/create`
 
-If the first call does not return `402`, stop and report error. Do not simulate payment success.
+## 1. 注册卖方
 
-## Required Runtime
-1. Start server from repo root:
-- `./start_server.sh`
-2. Base URL default:
-- `http://127.0.0.1:9000`
-3. Health check:
-- `GET /healthz` must return `200` and `{\"status\":\"ok\"}`
+在服务健康后注册卖方，并记录 `seller_id`。
 
-## APIs Used
-- `GET /v1/sellers/search?keyword=<topic>`
-- `POST /v1/transactions/create` (must execute two phases: 402 -> 200)
-- `GET /v1/transactions/{transaction_id}` (optional post-check)
-- `GET /v1/session/{transaction_id}` (optional post-check, needs Bearer token)
-
-## One-Command Transaction + Session + Result
-Use bundled script:
-- `skills/openclaw-bot-delegation/scripts/sign_and_create_transaction.py`
-
-Run:
 ```bash
 cd /root/ContextSwap
-uv run python skills/openclaw-bot-delegation/scripts/sign_and_create_transaction.py \
-  --env-file /root/.openclaw/workspace/.env \
-  --seller-id "$DEMO_POLLING_SELLER_ID" \
-  --seller-bot-username "$DEMO_POLLING_BOT_USERNAME" \
-  --initial-prompt "Please provide polling probability breakdown for this market." \
-  --write-legacy-filename
+set -a && source .env && set +a
+
+BASE_URL="${PLATFORM_BASE_URL:-http://127.0.0.1:9000}"
+
+curl -sS -X POST "$BASE_URL/v1/sellers/register" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "evm_address": "'"${CONFLUX_TESTNET_RECIPIENT_ADDRESS}"'",
+    "price_conflux_wei": 1000000000000000,
+    "description": "delegation seller",
+    "keywords": ["delegation", "analysis", "market"]
+  }'
 ```
 
-Optional input for deterministic prewritten markdown:
-- `--mock-result-file <path-to-prewritten-md>`
+响应要求：
 
-Script contract:
-1. Phase-1 calls create without `PAYMENT-SIGNATURE`; expects `HTTP 402` + `PAYMENT-REQUIRED`.
-2. Signs Conflux payment locally and retries phase-2 with `PAYMENT-SIGNATURE`; expects `HTTP 200`.
-3. Requires `session.chat_id` and `session.message_thread_id` in success response.
-4. Polls RPC to check transaction hash is discoverable.
-5. Writes deterministic markdown output file for main-agent loading.
+- 返回 `seller_id`
+- `status` 为 `active`
 
-## Output Contract (Main Agent Must Read This)
-Primary file (always):
-- `~/.openclaw/question/<transaction_id>.md`
+## 2. 买方搜索与使用全流程
 
-Optional compatibility file:
-- `~/.openclaw/question/<transaction_id>__<seller_bot_username>__answer.md`
+先检索卖方，再执行两段式支付创建交易，最后查询交易与会话。
 
-Main agent should load only `<transaction_id>.md`.
-
-## Returned JSON Fields
-Script stdout returns JSON containing:
-- `transaction_id`
-- `tx_hash`
-- `chat_id`
-- `message_thread_id`
-- `rpc_confirmed`
-- `explorer_url`
-- `result_md_path`
-- `legacy_result_md_path`
-- `payment_response`
-- `raw_response`
-
-## Subtopic Response Strategy
-Default for demos:
-1. Use real Topic creation.
-2. Allow mock content for delegated answer text.
-3. Keep relay markers compatible with platform rules:
-- `[READY_TO_FORWARD]`
-- `[END_OF_REPORT]`
-
-Recommended env defaults for stable demos:
-- `MOCK_BOTS_ENABLED=true`
-- `MOCK_SELLER_AUTO_END=true`
-
-## Case Extension Rules
-To add a new case, only change runtime inputs:
-1. `seller_id`
-2. `seller_bot_username`
-3. `initial_prompt`
-4. Optional `--mock-result-text` or `--mock-result-file`
-
-Do not fork the script or change the 402/two-phase flow.
-
-## New Demo: Headhunter Agent (Simulated)
-Goal:
-1. Buyer A (job seeker) submits CV to a headhunter agent.
-2. Buyer B (HR) asks the same headhunter agent for best matches.
-3. Both rounds must still go through real x402 flow + real Topic creation.
-4. Subtopic dialog can stay invisible in demo; final answer is loaded from prewritten markdown in `question_dir`.
-
-Use these prewritten markdown templates:
-- `skills/openclaw-bot-delegation/assets/headhunter/candidate_cv_ingested.md`
-- `skills/openclaw-bot-delegation/assets/headhunter/hr_match_report.md`
-- `skills/openclaw-bot-delegation/assets/headhunter/candidate_cv_index.md`
-- `skills/openclaw-bot-delegation/assets/headhunter/CAND-2026-001.md`
-- `skills/openclaw-bot-delegation/assets/headhunter/CAND-2026-014.md`
-- `skills/openclaw-bot-delegation/assets/headhunter/CAND-2026-023.md`
-
-### Prepare Question Directory
-```bash
-mkdir -p ~/.openclaw/question
-cp skills/openclaw-bot-delegation/assets/headhunter/candidate_cv_ingested.md ~/.openclaw/question/
-cp skills/openclaw-bot-delegation/assets/headhunter/hr_match_report.md ~/.openclaw/question/
-cp skills/openclaw-bot-delegation/assets/headhunter/candidate_cv_index.md ~/.openclaw/question/
-cp skills/openclaw-bot-delegation/assets/headhunter/CAND-2026-001.md ~/.openclaw/question/
-cp skills/openclaw-bot-delegation/assets/headhunter/CAND-2026-014.md ~/.openclaw/question/
-cp skills/openclaw-bot-delegation/assets/headhunter/CAND-2026-023.md ~/.openclaw/question/
-```
-
-### Round 1: Job Seeker Submits CV (Mock Ingestion)
 ```bash
 cd /root/ContextSwap
-uv run python skills/openclaw-bot-delegation/scripts/sign_and_create_transaction.py \
-  --env-file /root/.openclaw/workspace/.env \
-  --seller-id "$DEMO_HEADHUNTER_SELLER_ID" \
-  --seller-bot-username "$DEMO_HEADHUNTER_BOT_USERNAME" \
-  --buyer-bot-username "$DEMO_JOBSEEKER_BOT_USERNAME" \
-  --initial-prompt "我是求职者，请将我的CV入库，并回复是否已登记。" \
-  --mock-result-file ~/.openclaw/question/candidate_cv_ingested.md \
-  --write-legacy-filename
+set -a && source .env && set +a
+
+uv run python - <<'PY'
+import os
+import httpx
+
+from contextswap.config import load_env
+from contextswap.facilitator.conflux import ConfluxFacilitator
+from contextswap.x402 import b64decode_json, b64encode_json, build_payment
+
+base_url = os.getenv("PLATFORM_BASE_URL", "http://127.0.0.1:9000")
+search_keyword = os.getenv("DELEGATION_SEARCH_KEYWORD", "delegation")
+session_token = os.getenv("TG_MANAGER_AUTH_TOKEN", "").strip()
+
+env = load_env()
+facilitator = ConfluxFacilitator(env.rpc_url)
+
+with httpx.Client(base_url=base_url, timeout=30.0) as client:
+    # 1) 搜索卖方
+    search = client.get("/v1/sellers/search", params={"keyword": search_keyword})
+    assert search.status_code == 200, search.text
+    items = search.json().get("items", [])
+    assert items, f"no seller found for keyword={search_keyword!r}"
+
+    seller = items[0]
+    seller_id = seller["seller_id"]
+
+    # 2) phase-1: 不带 PAYMENT-SIGNATURE，必须返回 402
+    create_payload = {
+        "seller_id": seller_id,
+        "buyer_address": env.buyer_address,
+        "buyer_bot_username": os.getenv("DELEGATION_BUYER_BOT", "buyer_bot"),
+        "seller_bot_username": os.getenv("DELEGATION_SELLER_BOT", "seller_bot"),
+        "initial_prompt": os.getenv(
+            "DELEGATION_INITIAL_PROMPT",
+            "请给出结构化分析结论，并包含关键依据。",
+        ),
+        "payment_network": os.getenv("DELEGATION_PAYMENT_NETWORK", "conflux"),
+    }
+
+    phase1 = client.post("/v1/transactions/create", json=create_payload)
+    assert phase1.status_code == 402, phase1.text
+    required_b64 = phase1.headers.get("PAYMENT-REQUIRED")
+    assert required_b64, "missing PAYMENT-REQUIRED"
+
+    # 3) 生成 PAYMENT-SIGNATURE，重试 create，必须返回 200
+    requirements = b64decode_json(required_b64)
+    payment = build_payment(
+        requirements=requirements,
+        w3=facilitator.web3,
+        buyer_address=env.buyer_address,
+        buyer_private_key=env.buyer_private_key,
+    )
+
+    phase2 = client.post(
+        "/v1/transactions/create",
+        json=create_payload,
+        headers={"PAYMENT-SIGNATURE": b64encode_json(payment)},
+    )
+    assert phase2.status_code == 200, phase2.text
+    body = phase2.json()
+
+    tx_id = body["transaction_id"]
+    session = body.get("session") or {}
+    assert session.get("chat_id") is not None, body
+    assert session.get("message_thread_id") is not None, body
+
+    # 4) 查询交易
+    tx_query = client.get(f"/v1/transactions/{tx_id}")
+    assert tx_query.status_code == 200, tx_query.text
+
+    # 5) 查询会话（需要 TG_MANAGER_AUTH_TOKEN）
+    if session_token:
+        session_query = client.get(
+            f"/v1/session/{tx_id}",
+            headers={"Authorization": f"Bearer {session_token}"},
+        )
+        assert session_query.status_code == 200, session_query.text
+
+    print({
+        "seller_id": seller_id,
+        "transaction_id": tx_id,
+        "chat_id": session.get("chat_id"),
+        "message_thread_id": session.get("message_thread_id"),
+    })
+PY
 ```
 
-Expected semantic result in `<transaction_id>.md`:
-- "猎头已经读了你的cv，有合适岗位会通知"
+执行要求：
 
-### Round 2: HR Asks for Matching Candidates (Mock Retrieval)
+- `phase1` 必须是 `HTTP 402`，并包含 `PAYMENT-REQUIRED`
+- `phase2` 必须是 `HTTP 200`
+- 成功响应必须包含 `transaction_id`、`session.chat_id`、`session.message_thread_id`
+
+## 3. 重新启动服务的方式
+
+使用以下命令重启平台服务并完成健康检查。
+
 ```bash
 cd /root/ContextSwap
-uv run python skills/openclaw-bot-delegation/scripts/sign_and_create_transaction.py \
-  --env-file /root/.openclaw/workspace/.env \
-  --seller-id "$DEMO_HEADHUNTER_SELLER_ID" \
-  --seller-bot-username "$DEMO_HEADHUNTER_BOT_USERNAME" \
-  --buyer-bot-username "$DEMO_HR_BOT_USERNAME" \
-  --initial-prompt "我是HR，请根据岗位需求返回最匹配的候选人。岗位：高级后端工程师，Python/Go，分布式系统经验。" \
-  --mock-result-file ~/.openclaw/question/hr_match_report.md \
-  --write-legacy-filename
+
+pkill -f "contextswap.platform.main" || true
+sleep 1
+
+nohup ./start_server.sh > logs/backend_manual_restart.log 2>&1 &
+
+sleep 2
+curl -sS "${PLATFORM_BASE_URL:-http://127.0.0.1:9000}/healthz"
 ```
 
-Expected behavior:
-1. Script still does 402 -> signed payment -> 200.
-2. Session and subtopic are still created.
-3. Result markdown is deterministic mock content from prewritten file.
-4. Main agent reads `~/.openclaw/question/<transaction_id>.md` and reports who is most suitable.
-5. If report only contains `candidate_id`, main agent should map via `~/.openclaw/question/candidate_cv_index.md` then read `~/.openclaw/question/<candidate_id>.md`.
+结果要求：
 
-### Demo Scope Guardrails
-- Headhunter replies are fully simulated.
-- Do not claim real CV parsing or real database retrieval in this demo.
-- Do not skip x402 payment flow.
-
-## Failure Handling
-- Seller search empty: report no seller and request alternate keyword.
-- Phase-1 is not `402`: stop and report mismatch.
-- Missing `PAYMENT-REQUIRED`: stop and report protocol failure.
-- Phase-2 is not `200`: stop and report response body.
-- Missing session fields after paid transaction: treat as failed delegation.
-- Result markdown write failure: treat as failed delegation.
+- 健康检查返回 `{"status":"ok"}`
+- 若健康检查失败，继续查看日志文件：`logs/backend_manual_restart.log`
